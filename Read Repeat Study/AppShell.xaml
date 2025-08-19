@@ -5,16 +5,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:Read_Repeat_Study.Pages"
     Title="Read_Repeat_Study">
-
-    <!-- Make sure this ShellContent points to HomePage -->
-    <ShellContent
+    <TabBar>
+        <ShellContent
         Title="Home"
+        Icon="home.png"
         ContentTemplate="{DataTemplate pages:HomePage}"
         Route="home" />
-
-    <!-- Your other routes -->
+        <ShellContent
+        Title="Flags"
+        Icon="flag.png"
+        ContentTemplate="{DataTemplate pages:FlagsPage}"
+        Route="flags" />
+    </TabBar>
     <ShellContent
-        Route="AddEditFlagPage"
-        ContentTemplate="{DataTemplate pages:AddEditFlagPage}"
-        IsVisible="False" />
+      Route="AddEditFlagPage"
+      ContentTemplate="{DataTemplate pages:AddEditFlagPage}"
+      IsVisible="False" />
 </Shell>

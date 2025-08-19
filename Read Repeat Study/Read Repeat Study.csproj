@@ -66,8 +66,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Update="Pages\HomePage.xaml.cs">
-	    <DependentUpon>HomePage.xaml</DependentUpon>
+	  <Compile Update="Pages\FlagsPage.xaml.cs">
+	    <DependentUpon>FlagsPage.xaml</DependentUpon>
 	  </Compile>
 	  <Compile Update="Pages\AddEditFlagPage.xaml.cs">
 	    <DependentUpon>AddEditFlagPage.xaml</DependentUpon>
@@ -78,16 +78,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <MauiXaml Update="Pages\HomePage.xaml">
+	  <MauiXaml Update="Pages\FlagsPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Pages\AddEditFlagPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Behavior\" />
+	  <MauiXaml Update="Pages\HomePage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	</ItemGroup>
 
 </Project>

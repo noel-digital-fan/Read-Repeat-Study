@@ -25,9 +25,10 @@ namespace Read_Repeat_Study
             builder.Services.AddSingleton<DatabaseService>();
 
             // *** ADD THESE PAGE REGISTRATIONS ***
-            builder.Services.AddTransient<HomePage>();
+            builder.Services.AddTransient<FlagsPage>();
             builder.Services.AddTransient<AddEditFlagPage>();
             builder.Services.AddTransient<ReaderPage>();
+            builder.Services.AddTransient<HomePage>();
 
 
 #if DEBUG

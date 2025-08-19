@@ -8,10 +8,9 @@ namespace Read_Repeat_Study
         {
             InitializeComponent();
 
-            // Add debug to see if Shell starts
-            System.Diagnostics.Debug.WriteLine("=== APPSHELL CONSTRUCTOR ===");
-
+            // Register routes for navigation
             Routing.RegisterRoute(nameof(HomePage), typeof(HomePage));
+            Routing.RegisterRoute(nameof(FlagsPage), typeof(FlagsPage));
             Routing.RegisterRoute(nameof(ReaderPage), typeof(ReaderPage));
             Routing.RegisterRoute(nameof(AddEditFlagPage), typeof(AddEditFlagPage));
         }

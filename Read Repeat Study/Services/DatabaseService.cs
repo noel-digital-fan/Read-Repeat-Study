@@ -1,4 +1,5 @@
-﻿using SQLite;
+﻿using Read_Repeat_Study.Models;  // Make sure to add your models namespace
+using SQLite;
 
 namespace Read_Repeat_Study.Services
 {
@@ -12,10 +13,12 @@ namespace Read_Repeat_Study.Services
             var dbPath = Path.Combine(FileSystem.AppDataDirectory, "readrepeatstudy.db3");
             _db = new SQLiteAsyncConnection(dbPath);
 
-            // Create the Flags table if it doesn't exist
+            // Create tables if they don't exist
             _db.CreateTableAsync<Flags>().Wait();
+            _db.CreateTableAsync<ImportedDocument>().Wait();
         }
 
+        // Flags methods
         public async Task<List<Flags>> GetAllFlagsAsync() =>
             await _db.Table<Flags>().ToListAsync();
 
@@ -32,5 +35,24 @@ namespace Read_Repeat_Study.Services
 
         public async Task DeleteFlagAsync(Flags flag) =>
             await _db.DeleteAsync(flag);
+
+        // ImportedDocument methods - Add these
+
+        public async Task<List<ImportedDocument>> GetAllDocumentsAsync() =>
+            await _db.Table<ImportedDocument>().ToListAsync();
+
+        public async Task<ImportedDocument> GetDocumentAsync(int id) =>
+            await _db.Table<ImportedDocument>().Where(d => d.ID == id).FirstOrDefaultAsync();
+
+        public async Task SaveDocumentAsync(ImportedDocument document)
+        {
+            if (document.ID != 0)
+                await _db.UpdateAsync(document);
+            else
+                await _db.InsertAsync(document);
+        }
+
+        public async Task DeleteDocumentAsync(ImportedDocument document) =>
+            await _db.DeleteAsync(document);
     }
 }
