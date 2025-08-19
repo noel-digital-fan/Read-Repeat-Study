@@ -1,0 +1,102 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Read_Repeat_Study.ReaderPage">
+
+    <ScrollView>
+        <Grid RowSpacing="10" Padding="16">
+            <!-- Define rows: Controls, Header, Button, Editor -->
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--Controls for the language selection -->
+            <VerticalStackLayout Grid.Row="0">
+                <SearchBar x:Name="VoiceSearchBar"
+                           Placeholder="Search voices..."
+                           TextChanged="OnVoiceSearchTextChanged"
+                           SearchButtonPressed="OnVoiceSearchButtonPressed"
+                           Margin="0,0,0,8"/>
+                <Picker x:Name="VoicePicker"
+                        Title="Select Voice"
+                        SelectedIndexChanged="OnVoiceChanged"
+                        Focused="OnVoicePickerFocused"
+                        Margin="0,0,0,8"/>
+            </VerticalStackLayout>
+
+
+
+            <!-- Header label -->
+            <Label Text="Test"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   Grid.Row="1"
+                   Margin="0,8" />
+
+            <!-- Import button -->
+            <Button Text="Import TXT File"
+                    Clicked="OnImportDocumentClicked"
+                    HeightRequest="48"
+                    BackgroundColor="#6200EE"
+                    TextColor="White"
+                    FontSize="16"
+                    CornerRadius="8"
+                    Grid.Row="2" />
+
+            <!-- Playback controls -->
+            <HorizontalStackLayout Grid.Row="3"
+                       Spacing="20"
+                       HorizontalOptions="Center"
+                       Padding="0,8,0,8">
+
+                <Button Text="Play"
+                        WidthRequest="80"
+                        HeightRequest="40"
+                        BackgroundColor="#6200EE"
+                        TextColor="White"
+                        CornerRadius="8"
+                        Clicked="OnPlayClicked"/>
+
+                <Button Text="Pause"
+                        WidthRequest="80"
+                        HeightRequest="40"
+                        BackgroundColor="#6200EE"
+                        TextColor="White"
+                        CornerRadius="8" 
+                        Clicked="OnPauseClicked"/>
+
+                <Button x:Name="RepeatButton"
+                        Text="Repeat"
+                        WidthRequest="80"
+                        HeightRequest="40"
+                        BackgroundColor="#6200EE"
+                        TextColor="White"
+                        CornerRadius="8"
+                        Clicked="OnRepeatClicked"/>
+            </HorizontalStackLayout>
+
+            <!-- Text editor framed -->
+            <Frame Grid.Row="4"
+                   BorderColor="Gray"
+                   CornerRadius="8"
+                   HasShadow="False"
+                   BackgroundColor="White"
+                   Margin="0,8,0,0">
+
+                <Editor x:Name="TxtContentEditor"
+                        Placeholder="File content will appear here..."
+                        BackgroundColor="White"
+                        TextColor="Black"
+                        FontSize="18"
+                        VerticalOptions="Fill"
+                        HorizontalOptions="Fill" />
+            </Frame>
+        </Grid>
+    </ScrollView>
+
+</ContentPage>

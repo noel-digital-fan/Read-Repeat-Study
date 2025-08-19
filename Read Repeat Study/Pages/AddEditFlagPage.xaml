@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="Read_Repeat_Study.Pages.AddEditFlagPage"
+    Title="Add / Edit Flag">
+
+    <VerticalStackLayout Padding="16" Spacing="12">
+
+        <!-- Header -->
+        <Label x:Name="HeaderLabel" FontSize="24" />
+
+        <!-- Flag Name -->
+        <Label Text="Flag Name" />
+        <Entry x:Name="NameEntry" Placeholder="Enter flag name" />
+
+        <!-- Base Color Swatches -->
+        <Label Text="Base Colors" Margin="0,8,0,0" />
+        <ScrollView Orientation="Horizontal">
+            <HorizontalStackLayout Spacing="8">
+                <BoxView Color="Red"    WidthRequest="32" HeightRequest="32">
+                    <BoxView.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
+                                  CommandParameter="Red" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+                <BoxView Color="Green"  WidthRequest="32" HeightRequest="32">
+                    <BoxView.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
+                                  CommandParameter="Green" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+                <BoxView Color="Blue"   WidthRequest="32" HeightRequest="32">
+                    <BoxView.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
+                                  CommandParameter="Blue" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+                <BoxView Color="Yellow" WidthRequest="32" HeightRequest="32">
+                    <BoxView.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
+                                  CommandParameter="Yellow" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+                <BoxView Color="Purple" WidthRequest="32" HeightRequest="32">
+                    <BoxView.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
+                                  CommandParameter="Purple" />
+                    </BoxView.GestureRecognizers>
+                </BoxView>
+            </HorizontalStackLayout>
+        </ScrollView>
+
+        <!-- RGB Sliders -->
+        <Label Text="Adjust RGB" Margin="0,8,0,0" />
+        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8">
+            <Label Text="R" Grid.Row="0" Grid.Column="0" VerticalOptions="Center" />
+            <Slider x:Name="RedSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" />
+            <Label Text="{Binding Source={x:Reference RedSlider}, Path=Value, StringFormat='{}{0:F0}'}"
+             Grid.Row="0" Grid.Column="2" VerticalOptions="Center" />
+
+            <Label Text="G" Grid.Row="1" Grid.Column="0" VerticalOptions="Center" />
+            <Slider x:Name="GreenSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" />
+            <Label Text="{Binding Source={x:Reference GreenSlider}, Path=Value, StringFormat='{}{0:F0}'}"
+             Grid.Row="1" Grid.Column="2" VerticalOptions="Center" />
+
+            <Label Text="B" Grid.Row="2" Grid.Column="0" VerticalOptions="Center" />
+            <Slider x:Name="BlueSlider" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" />
+            <Label Text="{Binding Source={x:Reference BlueSlider}, Path=Value, StringFormat='{}{0:F0}'}"
+             Grid.Row="2" Grid.Column="2" VerticalOptions="Center" />
+        </Grid>
+
+        <!-- Live Preview -->
+        <Label Text="Preview" Margin="0,8,0,0" />
+        <BoxView x:Name="ColorPreview" HeightRequest="50" WidthRequest="150"
+             HorizontalOptions="Center" />
+
+        <!-- Save Button -->
+        <Button Text="Save" Clicked="OnSaveClicked" Margin="0,12,0,0" />
+
+    </VerticalStackLayout>
+</ContentPage>
