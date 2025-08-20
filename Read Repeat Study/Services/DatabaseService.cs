@@ -1,5 +1,4 @@
-﻿using Read_Repeat_Study.Models;  // Make sure to add your models namespace
-using SQLite;
+﻿using SQLite;
 
 namespace Read_Repeat_Study.Services
 {

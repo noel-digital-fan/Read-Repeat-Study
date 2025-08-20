@@ -1,5 +1,4 @@
-﻿using Read_Repeat_Study.Models;
-using Read_Repeat_Study.Services;
+﻿using Read_Repeat_Study.Services;
 
 namespace Read_Repeat_Study
 {
@@ -23,10 +22,10 @@ namespace Read_Repeat_Study
             set
             {
                 _documentId = value;
-                if (_documentId <= 0)  // Check for -1 or any non-positive ID
+                if (_documentId <= 0)  // Check for -1 or any non-positive ID indicating new document
                 {
                     isNewDocument = true;
-                    CurrentDocument = new ImportedDocument { Name = "Untitled", Content = "" };
+                    CurrentDocument = new ImportedDocument { Name = "Untitled", Content = "", VoiceLocale = null };
                     TxtContentEditor.Text = "";
                     Title = "New Document";
                     SetEditorState(true);
@@ -39,6 +38,12 @@ namespace Read_Repeat_Study
             }
         }
 
+        public ReaderPage(DatabaseService db)
+        {
+            InitializeComponent();
+            _db = db;
+        }
+
         private async void LoadDocument(int id)
         {
             CurrentDocument = await _db.GetDocumentByIdAsync(id);
@@ -47,6 +52,12 @@ namespace Read_Repeat_Study
                 TxtContentEditor.Text = CurrentDocument.Content;
                 Title = CurrentDocument.Name;
                 SetEditorState(false);
+
+                // Set saved voice locale after locales are loaded
+                if (!string.IsNullOrWhiteSpace(CurrentDocument.VoiceLocale) && filteredLocales.Any())
+                {
+                    SetSavedVoiceLocale();
+                }
             }
         }
 
@@ -57,18 +68,47 @@ namespace Read_Repeat_Study
             EditButton.IsVisible = !isEditing;
         }
 
-        public ReaderPage(DatabaseService db)
+        private void SetSavedVoiceLocale()
         {
-            InitializeComponent();
-            _db = db;
+            if (CurrentDocument?.VoiceLocale != null && systemLocales.Any())
+            {
+                // Match using language-country-name string for consistency
+                var savedLocale = systemLocales.FirstOrDefault(l =>
+                    $"{l.Language}-{l.Country}-{l.Name}" == CurrentDocument.VoiceLocale);
+
+                if (savedLocale != null)
+                {
+                    var index = filteredLocales.FindIndex(l =>
+                        $"{l.Language}-{l.Country}-{l.Name}" == CurrentDocument.VoiceLocale);
+
+                    if (index >= 0)
+                    {
+                        VoicePicker.SelectedIndex = index;
+                        selectedLocale = filteredLocales[index];
+                    }
+                    else
+                    {
+                        // If not found in filteredLocales, reset selection to savedLocale
+                        selectedLocale = savedLocale;
+                    }
+                }
+            }
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
+
+            // Load system locales and bind picker
             systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
             filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
             VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+
+            // If CurrentDocument loaded before OnAppearing, set voice picker
+            if (CurrentDocument != null && !string.IsNullOrWhiteSpace(CurrentDocument.VoiceLocale))
+            {
+                SetSavedVoiceLocale();
+            }
         }
 
         private void OnVoicePickerFocused(object sender, FocusEventArgs e)
@@ -90,8 +130,22 @@ namespace Read_Repeat_Study
             if (picker.SelectedIndex >= 0)
             {
                 selectedLocale = filteredLocales[picker.SelectedIndex];
+
+                // Fire and forget saving
+                _ = SaveVoiceSelectionAsync();
             }
         }
+
+        private async Task SaveVoiceSelectionAsync()
+        {
+            if (CurrentDocument != null)
+            {
+                CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
+                await _db.SaveDocumentAsync(CurrentDocument);
+            }
+        }
+
+
 
         private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e)
         {
@@ -100,12 +154,12 @@ namespace Read_Repeat_Study
 
         private void OnVoiceSearchButtonPressed(object sender, EventArgs e)
         {
+            var currentSelection = selectedLocale;
+
             var searchText = pendingSearchText.Trim().ToLowerInvariant();
             if (string.IsNullOrWhiteSpace(searchText))
             {
-                filteredLocales = systemLocales
-                    .OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})")
-                    .ToList();
+                filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
             }
             else
             {
@@ -117,9 +171,22 @@ namespace Read_Repeat_Study
                     .OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})")
                     .ToList();
             }
-            VoicePicker.ItemsSource = filteredLocales
-                .Select(l => $"{l.Language} - {l.Name} ({l.Country})")
-                .ToList();
+
+            VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+
+            // Restore selection if still available after filtering
+            if (currentSelection != null)
+            {
+                var index = filteredLocales.FindIndex(l =>
+                    l.Language == currentSelection.Language &&
+                    l.Country == currentSelection.Country &&
+                    l.Name == currentSelection.Name);
+                if (index >= 0)
+                {
+                    VoicePicker.SelectedIndex = index;
+                }
+            }
+
             VoicePicker.Focus();
         }
 
@@ -159,14 +226,18 @@ namespace Read_Repeat_Study
             string textToRead = TxtContentEditor.Text;
             if (!string.IsNullOrWhiteSpace(textToRead))
             {
-                ttsCancel = new CancellationTokenSource();
-                var options = new SpeechOptions
+                try
                 {
-                    Locale = selectedLocale,
-                    Pitch = 1.0f,
-                    Volume = 1.0f
-                };
-                await TextToSpeech.Default.SpeakAsync(textToRead, options, ttsCancel.Token);
+                    ttsCancel = new CancellationTokenSource();
+                    var options = new SpeechOptions
+                    {
+                        Locale = selectedLocale,
+                        Pitch = 1.0f,
+                        Volume = 1.0f
+                    };
+                    await TextToSpeech.Default.SpeakAsync(textToRead, options, ttsCancel.Token);
+                }
+                catch { /* handle errors if needed */ }
             }
         }
 
@@ -229,9 +300,10 @@ namespace Read_Repeat_Study
                 }
                 return null;
             }
+
             var flagNames = flags.Select(f => f.Name).ToArray();
             var selectedFlagName = await DisplayActionSheet("Select Flag", "Cancel", null, flagNames);
-            if (selectedFlagName == "Cancel" || string.IsNullOrWhiteSpace(selectedFlagName))
+            if (string.IsNullOrWhiteSpace(selectedFlagName) || selectedFlagName == "Cancel")
                 return null;
             return flags.FirstOrDefault(f => f.Name == selectedFlagName);
         }
@@ -245,7 +317,7 @@ namespace Read_Repeat_Study
 
         private async void OnSaveDocumentClicked(object sender, EventArgs e)
         {
-            // Initialize temp document for new unsaved document
+            // Create temp document if new and null
             if (isNewDocument && CurrentDocument == null)
             {
                 CurrentDocument = new ImportedDocument
@@ -256,7 +328,7 @@ namespace Read_Repeat_Study
                 };
             }
 
-            // If no document is loaded and not in new document mode, show error
+            // Show error if no doc and not new doc
             if (CurrentDocument == null && !isNewDocument)
             {
                 await DisplayAlert("Error", "No document loaded.", "OK");
@@ -266,22 +338,20 @@ namespace Read_Repeat_Study
             string action;
             if (isNewDocument)
             {
-                // New document: only show Save option
                 action = await DisplayActionSheet("Save Document", "Cancel", null, "Save");
                 if (action == "Save")
-                {
-                    action = "Create New"; // Treat as Create New internally
-                }
+                    action = "Create New"; // Treat as new internally
             }
             else
             {
-                // Existing document: show Override and Create New options
                 action = await DisplayActionSheet("Save Document", "Cancel", null, "Override Existing", "Create New");
             }
 
             if (action == "Override Existing" && !isNewDocument && CurrentDocument != null)
             {
                 CurrentDocument.Content = TxtContentEditor.Text;
+                if (selectedLocale != null)
+                    CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
                 await _db.SaveDocumentAsync(CurrentDocument);
                 await DisplayAlert("Saved", "Changes saved to the existing document.", "OK");
                 SetEditorState(false);
@@ -303,7 +373,8 @@ namespace Read_Repeat_Study
                     Content = TxtContentEditor.Text,
                     ImportedDate = DateTime.Now,
                     Flag = selectedFlag,
-                    FlagId = selectedFlag?.ID
+                    FlagId = selectedFlag?.ID,
+                    VoiceLocale = selectedLocale != null ? $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}" : null
                 };
                 await _db.SaveDocumentAsync(newDoc);
                 CurrentDocument = newDoc;
@@ -321,6 +392,5 @@ namespace Read_Repeat_Study
                 }
             }
         }
-
     }
 }

@@ -7,28 +7,107 @@
     x:Name="FlagsPageRoot"
     Title="Flags">
 
-    <VerticalStackLayout Padding="16" Spacing="12">
-        <Button Text="Add Flag" Clicked="OnAddFlagClicked" />
-        <CollectionView x:Name="FlagsCollection" SelectionMode="None">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Frame Padding="10" Margin="0,4" BorderColor="LightGray" CornerRadius="4"
-           Loaded="Frame_Loaded">
-                        <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
-                            <BoxView x:Name="ColorPreviewBox" WidthRequest="30" HeightRequest="30" />
-                            <Label Text="{Binding Name}" VerticalOptions="Center" />
-                        </HorizontalStackLayout>
-                        <Frame.Behaviors>
-                            <toolkit:TouchBehavior
-                LongPressCommand="{Binding Source={x:Reference FlagsPageRoot}, Path=BindingContext.ItemLongPressedCommand}"
-                LongPressCommandParameter="{Binding ID}"
-                LongPressDuration="500"
-                PressedOpacity="0.5" />
-                        </Frame.Behaviors>
-                    </Frame>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-    </VerticalStackLayout>
+    <AbsoluteLayout>
 
+        <!-- Main area: Add button + flags list -->
+        <VerticalStackLayout
+            Padding="16"
+            Spacing="12"
+            AbsoluteLayout.LayoutBounds="0,0,1,1"
+            AbsoluteLayout.LayoutFlags="All">
+
+            <Button Text="Add Flag"
+                    Clicked="OnAddFlagClicked" />
+
+            <CollectionView x:Name="FlagsCollection"
+                            ItemsSource="{Binding FlagsCollectionItems}"
+                            SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="10"
+                               Margin="0,4"
+                               BorderColor="LightGray"
+                               CornerRadius="4"
+                               BackgroundColor="White">
+                            <Frame.Triggers>
+                                <DataTrigger TargetType="Frame"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="BackgroundColor" Value="LightGray" />
+                                </DataTrigger>
+                            </Frame.Triggers>
+
+                            <!-- Tap toggles or navigates -->
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={x:Reference FlagsPageRoot}, Path=FlagTappedCommand}"
+                                    CommandParameter="{Binding ID}" />
+                            </Frame.GestureRecognizers>
+
+                            <!-- Long-press enters multi-select -->
+                            <Frame.Behaviors>
+                                <toolkit:TouchBehavior
+                                    LongPressCommand="{Binding Source={x:Reference FlagsPageRoot}, Path=FlagLongPressedCommand}"
+                                    LongPressCommandParameter="{Binding ID}"
+                                    LongPressDuration="500"
+                                    PressedOpacity="0.5" />
+                            </Frame.Behaviors>
+
+                            <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                                <BoxView WidthRequest="30"
+                                         HeightRequest="30"
+                                         Color="{Binding Color, Converter={StaticResource ColorFromNameConverter}}" />
+                                <Label Text="{Binding Name}" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+
+        <!-- BoxView blocker BEHIND the SelectionBar -->
+        <BoxView
+            x:Name="InputBlocker"
+            AbsoluteLayout.LayoutBounds="0,1,1,60"
+            AbsoluteLayout.LayoutFlags="WidthProportional,PositionProportional"
+            BackgroundColor="Transparent"
+            InputTransparent="False"
+            IsVisible="False">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnBlockerTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <!-- Fixed bottom toolbar for selection actions -->
+        <HorizontalStackLayout
+            x:Name="SelectionBar"
+            AbsoluteLayout.LayoutBounds="0,1,1,60"
+            AbsoluteLayout.LayoutFlags="WidthProportional,PositionProportional"
+            Padding="12"
+            Spacing="12"
+            IsVisible="False">
+
+            <Button x:Name="EditButton"
+                    Text="Edit"
+                    Clicked="OnEditSelected"
+                    IsVisible="False"
+                    HorizontalOptions="StartAndExpand" />
+
+            <Button x:Name="DeleteButton"
+                    Text="Delete"
+                    Clicked="OnDeleteSelected"
+                    IsVisible="False"
+                    HorizontalOptions="CenterAndExpand" />
+
+            <Button Text="Select All"
+                    Clicked="OnSelectAll"
+                    HorizontalOptions="EndAndExpand" />
+
+            <Button Text="Cancel"
+                    Clicked="OnCancelSelection"
+                    HorizontalOptions="End" />
+
+        </HorizontalStackLayout>
+
+    </AbsoluteLayout>
 </ContentPage>

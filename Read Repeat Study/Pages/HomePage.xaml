@@ -9,7 +9,7 @@
 
     <AbsoluteLayout>
 
-        <!-- Main Content Grid fills the whole page -->
+        <!-- Main Content Grid -->
         <Grid
             AbsoluteLayout.LayoutBounds="0,0,1,1"
             AbsoluteLayout.LayoutFlags="All"
@@ -20,11 +20,11 @@
             <!-- Import Button -->
             <HorizontalStackLayout Grid.Row="0" HorizontalOptions="Center" Spacing="12">
                 <Button Text="Import Text Files"
-                    Clicked="OnImportFilesClicked"
-                    BackgroundColor="#6200EE"
-                    TextColor="White"
-                    CornerRadius="8"
-                    WidthRequest="200" />
+                        Clicked="OnImportFilesClicked"
+                        BackgroundColor="#6200EE"
+                        TextColor="White"
+                        CornerRadius="8"
+                        WidthRequest="200" />
             </HorizontalStackLayout>
 
             <!-- Documents Header -->
@@ -38,8 +38,7 @@
             <CollectionView x:Name="DocumentsCollection"
                             Grid.Row="2"
                             ItemsSource="{Binding Documents}"
-                            SelectionMode="Single"
-                            SelectionChanged="OnDocumentSelected">
+                            SelectionMode="None">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Frame Padding="12"
@@ -49,18 +48,27 @@
                                HasShadow="False"
                                BackgroundColor="White"
                                Loaded="OnDocumentFrameLoaded">
+                            <Frame.Triggers>
+                                <DataTrigger TargetType="Frame"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="BackgroundColor" Value="LightGray" />
+                                </DataTrigger>
+                            </Frame.Triggers>
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDocumentTapped"
+                                                      CommandParameter="{Binding}" />
+                            </Frame.GestureRecognizers>
                             <Grid ColumnDefinitions="Auto,*,Auto"
                                   RowDefinitions="25,25"
                                   ColumnSpacing="12"
                                   HeightRequest="50">
-                                <!-- Flag Color Indicator -->
                                 <BoxView x:Name="FlagColorBox"
                                          Grid.Column="0"
                                          Grid.RowSpan="2"
                                          WidthRequest="4"
                                          VerticalOptions="Fill"
                                          BackgroundColor="Transparent"/>
-                                <!-- Document Info -->
                                 <VerticalStackLayout Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Spacing="4">
                                     <Label Text="{Binding Name}"
                                            FontSize="16"
@@ -70,7 +78,6 @@
                                            FontSize="12"
                                            TextColor="Gray"/>
                                 </VerticalStackLayout>
-                                <!-- Flag Name (was menu dots) -->
                                 <Label Grid.Column="2"
                                        Grid.RowSpan="2"
                                        Text="{Binding Flag.Name}"
@@ -81,7 +88,6 @@
                                        HorizontalOptions="Center"
                                        TextColor="#6200EE"/>
                             </Grid>
-                            <!-- Behaviors -->
                             <Frame.Behaviors>
                                 <toolkit:TouchBehavior
                                     LongPressCommand="{Binding Source={x:Reference HomePageRoot}, Path=DocumentLongPressedCommand}"
@@ -92,7 +98,6 @@
                         </Frame>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
-                <!-- Empty State -->
                 <CollectionView.EmptyView>
                     <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
                         <Label Text="📄" FontSize="48" HorizontalOptions="Center"/>
@@ -110,7 +115,7 @@
 
         </Grid>
 
-        <!-- Floating Create Document Button (bottom-right corner) -->
+        <!-- Floating Create Document Button -->
         <Button AbsoluteLayout.LayoutBounds="1,1,70,70"
                 AbsoluteLayout.LayoutFlags="PositionProportional"
                 Text="＋"
@@ -121,6 +126,57 @@
                 Padding="0"
                 Clicked="OnCreateDocumentClicked" />
 
-    </AbsoluteLayout>
+        <BoxView
+    x:Name="InputBlocker"
+    AbsoluteLayout.LayoutBounds="0,1,1,0.1"
+    AbsoluteLayout.LayoutFlags="All"
+    InputTransparent="False"
+    IsVisible="False"
+            BackgroundColor="Transparent">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnBlockerTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
 
+        <!-- Bottom Action Toolbar -->
+        <Grid x:Name="ActionButtonsContainer"
+              AbsoluteLayout.LayoutBounds="0,1,1,70"
+              AbsoluteLayout.LayoutFlags="WidthProportional,PositionProportional"
+              Padding="12"
+              ColumnSpacing="12"
+              InputTransparent="False"
+              ColumnDefinitions="*,auto,auto,auto"
+              IsVisible="False">
+
+            <Button x:Name="EditDocumentButton"
+                    Grid.Column="0"
+                    Text="Edit"
+                    Clicked="OnEditDocumentClicked"
+                    IsVisible="false" />
+
+            <Button x:Name="SelectAllButton"
+                    Grid.Column="1"
+                    Text="Select All"
+                    Clicked="OnSelectAllClicked"
+                    BackgroundColor="#2196F3"
+                    TextColor="White"
+                    CornerRadius="8" />
+
+            <Button x:Name="CancelSelectionButton"
+                    Grid.Column="2"
+                    Text="Unselect All"
+                    Clicked="OnCancelSelectionClicked"
+                    BackgroundColor="#9E9E9E"
+                    TextColor="White"
+                    CornerRadius="8" />
+
+            <Button x:Name="TakeActionsButton"
+                    Grid.Column="3"
+                    Text="Take Actions"
+                    Clicked="OnTakeActionsClicked"
+                    BackgroundColor="#333"
+                    TextColor="White"
+                    CornerRadius="8" />
+        </Grid>
+    </AbsoluteLayout>
 </ContentPage>
