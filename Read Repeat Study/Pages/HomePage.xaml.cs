@@ -298,5 +298,22 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
+        private async void OnCreateDocumentClicked(object sender, EventArgs e)
+        {
+            await Shell.Current.GoToAsync("ReaderPage?docId=-1");  // Use -1 for new document
+        }
+
+
+
+        private async void OnDocumentSelected(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.CurrentSelection.FirstOrDefault() is ImportedDocument document)
+            {
+                // Pass document ID as query parameter
+                await Shell.Current.GoToAsync($"ReaderPage?docId={document.ID}");
+                ((CollectionView)sender).SelectedItem = null;
+            }
+        }
+
     }
 }

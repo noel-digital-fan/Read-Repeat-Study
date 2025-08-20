@@ -7,96 +7,120 @@
     x:Name="HomePageRoot"
     Title="Home">
 
-    <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
+    <AbsoluteLayout>
 
-        <!-- Import Button -->
-        <HorizontalStackLayout Grid.Row="0" HorizontalOptions="Center" Spacing="12">
-            <Button Text="Import Text Files"
-            Clicked="OnImportFilesClicked"
-            BackgroundColor="#6200EE"
-            TextColor="White"
-            CornerRadius="8"
-            WidthRequest="200" />
-        </HorizontalStackLayout>
+        <!-- Main Content Grid fills the whole page -->
+        <Grid
+            AbsoluteLayout.LayoutBounds="0,0,1,1"
+            AbsoluteLayout.LayoutFlags="All"
+            RowDefinitions="Auto,Auto,*"
+            Padding="16"
+            RowSpacing="12">
 
-        <!-- Documents Header -->
-        <Label Grid.Row="1" 
-               Text="Imported Documents" 
-               FontSize="20" 
-               FontAttributes="Bold"
-               Margin="0,8,0,0"/>
-
-        <!-- Documents Collection -->
-        <CollectionView x:Name="DocumentsCollection" 
-                        Grid.Row="2" 
-                        SelectionMode="None">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Frame Padding="12" 
-                    Margin="0,4" 
-                    BorderColor="LightGray" 
+            <!-- Import Button -->
+            <HorizontalStackLayout Grid.Row="0" HorizontalOptions="Center" Spacing="12">
+                <Button Text="Import Text Files"
+                    Clicked="OnImportFilesClicked"
+                    BackgroundColor="#6200EE"
+                    TextColor="White"
                     CornerRadius="8"
-                    HasShadow="False"
-                    BackgroundColor="White"
-                    Loaded="OnDocumentFrameLoaded">
-                        <Frame.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnDocumentTapped"
-                            CommandParameter="{Binding}" />
-                        </Frame.GestureRecognizers>
-                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="25,25" ColumnSpacing="12" HeightRequest="50">
-                            <!-- Flag Color Indicator -->
-                            <BoxView x:Name="FlagColorBox" 
-                            Grid.Column="0" 
-                            Grid.RowSpan="2"
-                            WidthRequest="4" 
-                            VerticalOptions="Fill"
-                            BackgroundColor="Transparent"/>
-                            <!-- Document Info -->
-                            <VerticalStackLayout Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Spacing="4">
-                                <Label Text="{Binding Name}" 
-                                FontSize="16" 
-                                FontAttributes="Bold"
-                                TextColor="Black"/>
-                                <Label Text="{Binding ImportedDate, StringFormat='Imported: {0:MMM dd, yyyy HH:mm}'}" 
-                                FontSize="12" 
-                                TextColor="Gray"/>
-                            </VerticalStackLayout>
-                            <!-- Menu Dots -->
-                            <Label Grid.Column="2" 
-                            Grid.RowSpan="2"
-                            Text="{Binding Flag.Name}"
-                            HorizontalTextAlignment="Center"
-                            VerticalTextAlignment="Center"
-                            FontSize="13" 
-                            VerticalOptions="Center"
-                            HorizontalOptions="Center"
-                            TextColor="#6200EE"/>
-                        </Grid>
-                        <!-- Behaviors -->
-                        <Frame.Behaviors>
-                            <toolkit:TouchBehavior
-                            LongPressCommand="{Binding Source={x:Reference HomePageRoot}, Path=DocumentLongPressedCommand}"
-                            LongPressCommandParameter="{Binding .}"
-                            LongPressDuration="500"
-                            PressedOpacity="0.5" />
-                        </Frame.Behaviors>
-                    </Frame>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-            <!-- Empty State -->
-            <CollectionView.EmptyView>
-                <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
-                    <Label Text="📄" FontSize="48" HorizontalOptions="Center"/>
-                    <Label Text="No documents imported yet" 
-                           FontSize="16" 
-                           HorizontalOptions="Center"
-                           TextColor="Gray"/>
-                    <Label Text="Tap 'Import File' or 'Import Folder' to get started" 
-                           FontSize="14" 
-                           HorizontalOptions="Center"
-                           TextColor="Gray"/>
-                </VerticalStackLayout>
-            </CollectionView.EmptyView>
-        </CollectionView>
-    </Grid>
+                    WidthRequest="200" />
+            </HorizontalStackLayout>
+
+            <!-- Documents Header -->
+            <Label Grid.Row="1"
+                   Text="Documents"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   Margin="0,8,0,0"/>
+
+            <!-- Documents Collection -->
+            <CollectionView x:Name="DocumentsCollection"
+                            Grid.Row="2"
+                            ItemsSource="{Binding Documents}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnDocumentSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="12"
+                               Margin="0,4"
+                               BorderColor="LightGray"
+                               CornerRadius="8"
+                               HasShadow="False"
+                               BackgroundColor="White"
+                               Loaded="OnDocumentFrameLoaded">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  RowDefinitions="25,25"
+                                  ColumnSpacing="12"
+                                  HeightRequest="50">
+                                <!-- Flag Color Indicator -->
+                                <BoxView x:Name="FlagColorBox"
+                                         Grid.Column="0"
+                                         Grid.RowSpan="2"
+                                         WidthRequest="4"
+                                         VerticalOptions="Fill"
+                                         BackgroundColor="Transparent"/>
+                                <!-- Document Info -->
+                                <VerticalStackLayout Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Spacing="4">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           TextColor="Black"/>
+                                    <Label Text="{Binding ImportedDate, StringFormat='Imported: {0:MMM dd, yyyy HH:mm}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"/>
+                                </VerticalStackLayout>
+                                <!-- Flag Name (was menu dots) -->
+                                <Label Grid.Column="2"
+                                       Grid.RowSpan="2"
+                                       Text="{Binding Flag.Name}"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center"
+                                       FontSize="13"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="Center"
+                                       TextColor="#6200EE"/>
+                            </Grid>
+                            <!-- Behaviors -->
+                            <Frame.Behaviors>
+                                <toolkit:TouchBehavior
+                                    LongPressCommand="{Binding Source={x:Reference HomePageRoot}, Path=DocumentLongPressedCommand}"
+                                    LongPressCommandParameter="{Binding .}"
+                                    LongPressDuration="500"
+                                    PressedOpacity="0.5" />
+                            </Frame.Behaviors>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <!-- Empty State -->
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
+                        <Label Text="📄" FontSize="48" HorizontalOptions="Center"/>
+                        <Label Text="No documents imported yet"
+                               FontSize="16"
+                               HorizontalOptions="Center"
+                               TextColor="Gray"/>
+                        <Label Text="Tap 'Import Text Files' to get started"
+                               FontSize="14"
+                               HorizontalOptions="Center"
+                               TextColor="Gray"/>
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+            </CollectionView>
+
+        </Grid>
+
+        <!-- Floating Create Document Button (bottom-right corner) -->
+        <Button AbsoluteLayout.LayoutBounds="1,1,70,70"
+                AbsoluteLayout.LayoutFlags="PositionProportional"
+                Text="＋"
+                BackgroundColor="#2E7D32"
+                TextColor="White"
+                FontSize="32"
+                CornerRadius="35"
+                Padding="0"
+                Clicked="OnCreateDocumentClicked" />
+
+    </AbsoluteLayout>
+
 </ContentPage>

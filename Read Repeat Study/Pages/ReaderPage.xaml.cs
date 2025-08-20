@@ -1,5 +1,9 @@
-﻿namespace Read_Repeat_Study
+﻿using Read_Repeat_Study.Models;
+using Read_Repeat_Study.Services;
+
+namespace Read_Repeat_Study
 {
+    [QueryProperty(nameof(DocumentId), "docId")]
     public partial class ReaderPage : ContentPage
     {
         private bool isRepeating = false;
@@ -8,49 +12,63 @@
         private List<Locale> filteredLocales = new();
         private Locale selectedLocale;
         private string pendingSearchText = "";
+        private ImportedDocument CurrentDocument;
+        private readonly DatabaseService _db;
+        private bool isNewDocument;
+        private int _documentId;
 
-        // Helper static properties to receive content from HomePage navigation
-        private bool _isLoadingImportedContent = false;
+        public int DocumentId
+        {
+            get => _documentId;
+            set
+            {
+                _documentId = value;
+                if (_documentId <= 0)  // Check for -1 or any non-positive ID
+                {
+                    isNewDocument = true;
+                    CurrentDocument = new ImportedDocument { Name = "Untitled", Content = "" };
+                    TxtContentEditor.Text = "";
+                    Title = "New Document";
+                    SetEditorState(true);
+                }
+                else
+                {
+                    isNewDocument = false;
+                    LoadDocument(value);
+                }
+            }
+        }
 
-        public ReaderPage()
+        private async void LoadDocument(int id)
+        {
+            CurrentDocument = await _db.GetDocumentByIdAsync(id);
+            if (CurrentDocument != null)
+            {
+                TxtContentEditor.Text = CurrentDocument.Content;
+                Title = CurrentDocument.Name;
+                SetEditorState(false);
+            }
+        }
+
+        void SetEditorState(bool isEditing)
+        {
+            TxtContentEditor.IsReadOnly = !isEditing;
+            SaveButton.IsVisible = isEditing;
+            EditButton.IsVisible = !isEditing;
+        }
+
+        public ReaderPage(DatabaseService db)
         {
             InitializeComponent();
+            _db = db;
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-
-            // Load imported content if any (set by HomePage)
-            if (!string.IsNullOrEmpty(ReaderPageHelper.DocumentContent))
-            {
-                _isLoadingImportedContent = true;
-                TxtContentEditor.Text = ReaderPageHelper.DocumentContent;
-
-                if (!string.IsNullOrEmpty(ReaderPageHelper.DocumentName))
-                    Title = $"Reader - {ReaderPageHelper.DocumentName}";
-
-                // Clear after loading
-                ReaderPageHelper.DocumentContent = null;
-                ReaderPageHelper.DocumentName = null;
-                _isLoadingImportedContent = false;
-            }
-
-            // Load available locales for TTS voice selection
             systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
-            filteredLocales = systemLocales
-                .OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})")
-                .ToList();
-            VoicePicker.ItemsSource = filteredLocales
-                .Select(l => $"{l.Language} - {l.Name} ({l.Country})")
-                .ToList();
-        }
-
-        protected override void OnDisappearing()
-        {
-            ttsCancel?.Cancel();
-            Title = "Test"; // Reset original page title
-            base.OnDisappearing();
+            filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+            VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
         }
 
         private void OnVoicePickerFocused(object sender, FocusEventArgs e)
@@ -127,7 +145,6 @@
                     using StreamReader reader = new(stream);
                     string textContent = await reader.ReadToEndAsync();
 
-                    // Display imported text in the Editor
                     TxtContentEditor.Text = textContent;
                 }
                 else
@@ -197,14 +214,113 @@
                 // Speech cancelled
             }
         }
-    }
 
-    /// <summary>
-    /// Helper static class for passing document content and name from HomePage
-    /// </summary>
-    public static class ReaderPageHelper
-    {
-        public static string DocumentContent { get; set; }
-        public static string DocumentName { get; set; }
+        private async Task<Flags> SelectFlagAsync()
+        {
+            var flags = await _db.GetAllFlagsAsync();
+            if (!flags.Any())
+            {
+                var createFlag = await DisplayAlert("No Flags",
+                    "No flags exist. Would you like to create one?", "Yes", "No");
+                if (createFlag)
+                {
+                    await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
+                    return null;
+                }
+                return null;
+            }
+            var flagNames = flags.Select(f => f.Name).ToArray();
+            var selectedFlagName = await DisplayActionSheet("Select Flag", "Cancel", null, flagNames);
+            if (selectedFlagName == "Cancel" || string.IsNullOrWhiteSpace(selectedFlagName))
+                return null;
+            return flags.FirstOrDefault(f => f.Name == selectedFlagName);
+        }
+
+        private void OnEditDocumentClicked(object sender, EventArgs e)
+        {
+            TxtContentEditor.IsReadOnly = false;
+            SaveButton.IsVisible = true;
+            EditButton.IsVisible = false;
+        }
+
+        private async void OnSaveDocumentClicked(object sender, EventArgs e)
+        {
+            // Initialize temp document for new unsaved document
+            if (isNewDocument && CurrentDocument == null)
+            {
+                CurrentDocument = new ImportedDocument
+                {
+                    Name = "Untitled",
+                    Content = TxtContentEditor.Text,
+                    ImportedDate = DateTime.Now
+                };
+            }
+
+            // If no document is loaded and not in new document mode, show error
+            if (CurrentDocument == null && !isNewDocument)
+            {
+                await DisplayAlert("Error", "No document loaded.", "OK");
+                return;
+            }
+
+            string action;
+            if (isNewDocument)
+            {
+                // New document: only show Save option
+                action = await DisplayActionSheet("Save Document", "Cancel", null, "Save");
+                if (action == "Save")
+                {
+                    action = "Create New"; // Treat as Create New internally
+                }
+            }
+            else
+            {
+                // Existing document: show Override and Create New options
+                action = await DisplayActionSheet("Save Document", "Cancel", null, "Override Existing", "Create New");
+            }
+
+            if (action == "Override Existing" && !isNewDocument && CurrentDocument != null)
+            {
+                CurrentDocument.Content = TxtContentEditor.Text;
+                await _db.SaveDocumentAsync(CurrentDocument);
+                await DisplayAlert("Saved", "Changes saved to the existing document.", "OK");
+                SetEditorState(false);
+            }
+            else if (action == "Create New" || isNewDocument)
+            {
+                var newName = await DisplayPromptAsync("New Document", "Enter document name:", CurrentDocument?.Name.Replace("Untitled", "New Document"));
+                if (string.IsNullOrWhiteSpace(newName))
+                    return;
+
+                Flags selectedFlag = null;
+                bool addFlag = await DisplayAlert("Add Flag", "Add a flag to this document?", "Yes", "No");
+                if (addFlag)
+                    selectedFlag = await SelectFlagAsync();
+
+                var newDoc = new ImportedDocument
+                {
+                    Name = newName,
+                    Content = TxtContentEditor.Text,
+                    ImportedDate = DateTime.Now,
+                    Flag = selectedFlag,
+                    FlagId = selectedFlag?.ID
+                };
+                await _db.SaveDocumentAsync(newDoc);
+                CurrentDocument = newDoc;
+                isNewDocument = false;
+                await DisplayAlert("Saved", "New document saved.", "OK");
+                SetEditorState(false);
+            }
+            else
+            {
+                if (isNewDocument)
+                {
+                    CurrentDocument = null;
+                    await DisplayAlert("Discarded", "Document creation cancelled.", "OK");
+                    await Shell.Current.GoToAsync("..");
+                }
+            }
+        }
+
     }
 }

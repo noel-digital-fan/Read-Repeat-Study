@@ -19,7 +19,7 @@
 		<Nullable>enable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>Read Repeat Study</ApplicationTitle>
+		<ApplicationTitle>Read Repeat TTS - Study App</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.readrepeatstudy</ApplicationId>
@@ -89,4 +89,9 @@
 	  </MauiXaml>
 	</ItemGroup>
 
+	<ItemGroup>
+	  <None Update="Pages\HomePage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </None>
+	</ItemGroup>
 </Project>

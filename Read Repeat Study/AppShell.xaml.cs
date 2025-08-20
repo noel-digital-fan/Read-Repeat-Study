@@ -13,6 +13,7 @@ namespace Read_Repeat_Study
             Routing.RegisterRoute(nameof(FlagsPage), typeof(FlagsPage));
             Routing.RegisterRoute(nameof(ReaderPage), typeof(ReaderPage));
             Routing.RegisterRoute(nameof(AddEditFlagPage), typeof(AddEditFlagPage));
+            Routing.RegisterRoute("AddDocumentPage", typeof(ReaderPage));
         }
     }
 }

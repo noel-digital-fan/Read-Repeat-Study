@@ -41,8 +41,8 @@ namespace Read_Repeat_Study.Services
         public async Task<List<ImportedDocument>> GetAllDocumentsAsync() =>
             await _db.Table<ImportedDocument>().ToListAsync();
 
-        public async Task<ImportedDocument> GetDocumentAsync(int id) =>
-            await _db.Table<ImportedDocument>().Where(d => d.ID == id).FirstOrDefaultAsync();
+        public async Task<ImportedDocument> GetDocumentByIdAsync(int id) =>
+    await _db.Table<ImportedDocument>().Where(d => d.ID == id).FirstOrDefaultAsync();
 
         public async Task SaveDocumentAsync(ImportedDocument document)
         {
