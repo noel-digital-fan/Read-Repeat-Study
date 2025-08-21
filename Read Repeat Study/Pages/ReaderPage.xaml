@@ -9,7 +9,6 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -27,21 +26,8 @@
                         Margin="0,0,0,8"/>
             </VerticalStackLayout>
 
-            <Grid Grid.Row="2"
-                  ColumnDefinitions="*,*"
-                  ColumnSpacing="12"
-                  Margin="0,0,0,8">
-                <Button Text="Import TXT File"
-                        BackgroundColor="#6200EE"
-                        TextColor="White"
-                        FontSize="16"
-                        CornerRadius="8"
-                        HeightRequest="48"
-                        Clicked="OnImportDocumentClicked"
-                        Grid.Column="0" />
-                
-                <!-- Wrap Edit and Save buttons inside a horizontal layout so they share the second column -->
-                <HorizontalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="8">
+            <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,0,0,8">
+                <HorizontalStackLayout Grid.ColumnSpan="2" HorizontalOptions="Center" Spacing="8">
                     <Button x:Name="EditButton"
                             Text="Edit Content"
                             BackgroundColor="#03DAC5"
@@ -63,9 +49,8 @@
                 </HorizontalStackLayout>
             </Grid>
 
-
             <!-- Playback controls -->
-            <HorizontalStackLayout Grid.Row="3" Spacing="20" HorizontalOptions="Center" Padding="0,8,0,8">
+            <HorizontalStackLayout Grid.Row="2" Spacing="20" HorizontalOptions="Center" Padding="0,8,0,8">
                 <Button Text="Play"
                         WidthRequest="80"
                         HeightRequest="40"
@@ -93,7 +78,7 @@
             </HorizontalStackLayout>
 
             <!-- Text editor framed -->
-            <Frame Grid.Row="4"
+            <Frame Grid.Row="3"
                    BorderColor="Gray"
                    CornerRadius="8"
                    HasShadow="False"
