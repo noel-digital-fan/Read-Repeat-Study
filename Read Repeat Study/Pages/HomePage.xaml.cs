@@ -1,6 +1,8 @@
 ﻿using Read_Repeat_Study.Services;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.Content;
 
 namespace Read_Repeat_Study.Pages
 {
@@ -22,6 +24,22 @@ namespace Read_Repeat_Study.Pages
             BindingContext = this;
             DocumentsCollection.ItemsSource = Documents;
         }
+
+        async Task<string> ExtractTextFromPdfAsync(FileResult file)
+        {
+            using var stream = await file.OpenReadAsync();
+            using var pdf = PdfDocument.Open(stream);
+            var textBuilder = new System.Text.StringBuilder();
+
+            // Fully qualify UglyToad.PdfPig.Content.Page to avoid ambiguity
+            foreach (UglyToad.PdfPig.Content.Page page in pdf.GetPages())
+            {
+                textBuilder.AppendLine(page.Text);
+            }
+
+            return textBuilder.ToString();
+        }
+
 
         protected override async void OnAppearing()
         {
@@ -246,11 +264,11 @@ namespace Read_Repeat_Study.Pages
                 var results = await FilePicker.Default.PickMultipleAsync(new PickOptions
                 {
                     FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-                    {
-                        { DevicePlatform.Android, new[] { "text/plain" } },
-                        { DevicePlatform.iOS, new[] { "public.plain-text" } },
-                        { DevicePlatform.WinUI, new[] { ".txt" } }
-                    })
+    {
+        { DevicePlatform.Android, new[] { "text/plain", "application/pdf" } },
+        { DevicePlatform.iOS, new[] { "public.plain-text", "com.adobe.pdf" } },
+        { DevicePlatform.WinUI, new[] { ".txt", ".pdf" } }
+    })
                 });
                 if (results?.Any() == true) await ImportMultipleFilesAsync(results);
             }
@@ -260,30 +278,63 @@ namespace Read_Repeat_Study.Pages
         async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files)
         {
             var txts = files.Where(f => Path.GetExtension(f.FullPath).ToLower() == ".txt").ToList();
-            if (!txts.Any()) { await DisplayAlert("No Valid Files", "Select TXT files.", "OK"); return; }
-            if (await DisplayAlert("Add Flag", $"Flag all {txts.Count} files?", "Yes", "No"))
+            var pdfs = files.Where(f => Path.GetExtension(f.FullPath).ToLower() == ".pdf").ToList();
+
+            if (!txts.Any() && !pdfs.Any())
             {
-                var flag = await SelectFlagAsync();
-                foreach (var f in txts)
-                {
-                    using var s = await f.OpenReadAsync();
-                    using var r = new StreamReader(s);
-                    var doc = new ImportedDocument
-                    {
-                        Name = Path.GetFileNameWithoutExtension(f.FileName),
-                        FilePath = f.FullPath,
-                        Content = await r.ReadToEndAsync(),
-                        ImportedDate = DateTime.Now,
-                        FlagId = flag?.ID,
-                        Flag = flag
-                    };
-                    await _db.SaveDocumentAsync(doc);
-                    Documents.Insert(0, doc);
-                }
-                UpdateFlagColors();
-                await DisplayAlert("Imported", $"Imported {txts.Count} files.", "OK");
+                await DisplayAlert("No Valid Files", "Select TXT or PDF files.", "OK");
+                return;
             }
+
+            // Ask if user wants to add a flag, but it is optional
+            bool wantsFlag = await DisplayAlert("Add Flag", $"Would you like to flag the {txts.Count + pdfs.Count} files?", "Yes", "No");
+            Flags? flag = null;
+
+            if (wantsFlag)
+            {
+                flag = await SelectFlagAsync();
+            }
+
+            // Import TXT files
+            foreach (var f in txts)
+            {
+                using var s = await f.OpenReadAsync();
+                using var r = new StreamReader(s);
+                var doc = new ImportedDocument
+                {
+                    Name = Path.GetFileNameWithoutExtension(f.FileName),
+                    FilePath = f.FullPath,
+                    Content = await r.ReadToEndAsync(),
+                    ImportedDate = DateTime.Now,
+                    FlagId = flag?.ID,
+                    Flag = flag
+                };
+                await _db.SaveDocumentAsync(doc);
+                Documents.Insert(0, doc);
+            }
+
+            // Import PDF files
+            foreach (var f in pdfs)
+            {
+                string text = await ExtractTextFromPdfAsync(f);
+                var doc = new ImportedDocument
+                {
+                    Name = Path.GetFileNameWithoutExtension(f.FileName),
+                    FilePath = f.FullPath,
+                    Content = text,
+                    ImportedDate = DateTime.Now,
+                    FlagId = flag?.ID,
+                    Flag = flag
+                };
+                await _db.SaveDocumentAsync(doc);
+                Documents.Insert(0, doc);
+            }
+
+            UpdateFlagColors();
+            await DisplayAlert("Imported", $"Imported {txts.Count + pdfs.Count} files.", "OK");
         }
+
+
 
         private async Task LoadDocumentsAsync()
         {
