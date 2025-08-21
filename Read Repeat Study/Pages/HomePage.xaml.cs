@@ -1,11 +1,8 @@
 ﻿using Read_Repeat_Study.Services;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows.Input;
 using UglyToad.PdfPig;
-using VersOne.Epub;
+using UglyToad.PdfPig.Content;
 
 namespace Read_Repeat_Study.Pages
 {
@@ -32,50 +29,15 @@ namespace Read_Repeat_Study.Pages
         {
             using var stream = await file.OpenReadAsync();
             using var pdf = PdfDocument.Open(stream);
-            var textBuilder = new StringBuilder();
+            var textBuilder = new System.Text.StringBuilder();
 
+            // Fully qualify UglyToad.PdfPig.Content.Page to avoid ambiguity
             foreach (UglyToad.PdfPig.Content.Page page in pdf.GetPages())
             {
                 textBuilder.AppendLine(page.Text);
             }
 
             return textBuilder.ToString();
-        }
-
-        string HtmlToPlainText(string html)
-        {
-            return Regex.Replace(html, "<.*?>", string.Empty)
-                        .Replace("&nbsp;", " ")
-                        .Replace("&amp;", "&")
-                        .Replace("&lt;", "<")
-                        .Replace("&gt;", ">");
-        }
-
-        string ConvertToDocx(string inputPath)
-        {
-            try
-            {
-                string outputDir = Path.GetDirectoryName(inputPath)!;
-                // Use .docx as target
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "soffice",
-                    Arguments = $"--headless --convert-to docx \"{inputPath}\" --outdir \"{outputDir}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using (var process = Process.Start(startInfo))
-                {
-                    process!.WaitForExit(10000); // up to 10 seconds
-                }
-                // Build expected path
-                string docxPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(inputPath) + ".docx");
-                return File.Exists(docxPath) ? docxPath : null;
-            }
-            catch
-            {
-                return null;
-            }
         }
 
 
@@ -284,12 +246,12 @@ namespace Read_Repeat_Study.Pages
         async Task<Flags> SelectFlagAsync()
         {
             var flags = await _db.GetAllFlagsAsync();
-            if (!flags.Any() && await DisplayAlert("No Flags", "No flags exist. Create one?", "Yes", "No"))
+            if (!flags.Any() && await DisplayAlert("No Flags",
+                "No flags exist. Create one?", "Yes", "No"))
             {
                 await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
                 return null;
             }
-
             var names = flags.Select(f => f.Name).ToArray();
             var choice = await DisplayActionSheet("Select Flag", "Cancel", null, names);
             return flags.FirstOrDefault(f => f.Name == choice);
@@ -302,108 +264,74 @@ namespace Read_Repeat_Study.Pages
                 var results = await FilePicker.Default.PickMultipleAsync(new PickOptions
                 {
                     FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-                        {
-                            { DevicePlatform.Android, new[]
-                                {
-                                    "text/plain",
-                                    "application/pdf",
-                                    "application/msword",
-                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    "application/epub+zip",
-                                }
-                            }
-                        })
+    {
+        { DevicePlatform.Android, new[] { "text/plain", "application/pdf" } },
+        { DevicePlatform.iOS, new[] { "public.plain-text", "com.adobe.pdf" } },
+        { DevicePlatform.WinUI, new[] { ".txt", ".pdf" } }
+    })
                 });
-
-                if (results?.Any() == true)
-                    await ImportMultipleFilesAsync(results);
+                if (results?.Any() == true) await ImportMultipleFilesAsync(results);
             }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", ex.Message, "OK");
-            }
+            catch (Exception ex) { await DisplayAlert("Error", ex.Message, "OK"); }
         }
 
         async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files)
         {
-            var allowedExtensions = new[] { ".txt", ".docx", ".epub", ".pdf" };
-            var supportedFiles = files
-                .Where(f => allowedExtensions.Contains(Path.GetExtension(f.FullPath).ToLower()))
-                .ToList();
+            var txts = files.Where(f => Path.GetExtension(f.FullPath).ToLower() == ".txt").ToList();
+            var pdfs = files.Where(f => Path.GetExtension(f.FullPath).ToLower() == ".pdf").ToList();
 
-            if (!supportedFiles.Any())
+            if (!txts.Any() && !pdfs.Any())
             {
-                await DisplayAlert("No Valid Files", "Please select supported files.", "OK");
+                await DisplayAlert("No Valid Files", "Select TXT or PDF files.", "OK");
                 return;
             }
 
-            bool wantsFlag = await DisplayAlert("Add Flag", $"Would you like to flag the {supportedFiles.Count} file(s)?", "Yes", "No");
+            // Ask if user wants to add a flag, but it is optional
+            bool wantsFlag = await DisplayAlert("Add Flag", $"Would you like to flag the {txts.Count + pdfs.Count} files?", "Yes", "No");
             Flags? flag = null;
 
             if (wantsFlag)
-                flag = await SelectFlagAsync();
-
-            foreach (var file in supportedFiles)
             {
-                string content = string.Empty;
-                string ext = Path.GetExtension(file.FullPath).ToLower();
+                flag = await SelectFlagAsync();
+            }
 
-                try
+            // Import TXT files
+            foreach (var f in txts)
+            {
+                using var s = await f.OpenReadAsync();
+                using var r = new StreamReader(s);
+                var doc = new ImportedDocument
                 {
-                    switch (ext)
-                    {
-                        case ".txt":
-                            using (var s = await file.OpenReadAsync())
-                            using (var reader = new StreamReader(s))
-                                content = await reader.ReadToEndAsync();
-                            break;
+                    Name = Path.GetFileNameWithoutExtension(f.FileName),
+                    FilePath = f.FullPath,
+                    Content = await r.ReadToEndAsync(),
+                    ImportedDate = DateTime.Now,
+                    FlagId = flag?.ID,
+                    Flag = flag
+                };
+                await _db.SaveDocumentAsync(doc);
+                Documents.Insert(0, doc);
+            }
 
-                        case ".pdf":
-                            content = await ExtractTextFromPdfAsync(file);
-                            break;
-
-                        case ".epub":
-                            var epubBook = await EpubReader.ReadBookAsync(file.FullPath);
-                            var builder = new StringBuilder();
-
-                            foreach (var chapter in epubBook.ReadingOrder)
-                            {
-                                string html = chapter.Content;
-                                // 1. Remove <style> blocks (and their contents)
-                                html = Regex.Replace(html, "<style[\\s\\S]*?>[\\s\\S]*?<\\/style>", string.Empty, RegexOptions.IgnoreCase);
-                                // 2. Remove <header>, <footer>, <nav> and their contents
-                                html = Regex.Replace(html, "<(header|footer|nav)[\\s\\S]*?>[\\s\\S]*?<\\/(header|footer|nav)>", string.Empty, RegexOptions.IgnoreCase);
-                                // 3. Now strip all remaining tags and HTML entities
-                                string plainText = HtmlToPlainText(html);
-                                builder.AppendLine(plainText);
-                            }
-
-
-                            content = builder.ToString();
-                            break;
-                    }
-
-                    var doc = new ImportedDocument
-                    {
-                        Name = Path.GetFileNameWithoutExtension(file.FileName),
-                        FilePath = file.FullPath,
-                        Content = content,
-                        ImportedDate = DateTime.Now,
-                        FlagId = flag?.ID,
-                        Flag = flag
-                    };
-
-                    await _db.SaveDocumentAsync(doc);
-                    Documents.Insert(0, doc);
-                }
-                catch (Exception ex)
+            // Import PDF files
+            foreach (var f in pdfs)
+            {
+                string text = await ExtractTextFromPdfAsync(f);
+                var doc = new ImportedDocument
                 {
-                    await DisplayAlert("Import Error", $"Failed to import {file.FileName}:\n{ex.Message}", "OK");
-                }
+                    Name = Path.GetFileNameWithoutExtension(f.FileName),
+                    FilePath = f.FullPath,
+                    Content = text,
+                    ImportedDate = DateTime.Now,
+                    FlagId = flag?.ID,
+                    Flag = flag
+                };
+                await _db.SaveDocumentAsync(doc);
+                Documents.Insert(0, doc);
             }
 
             UpdateFlagColors();
-            await DisplayAlert("Import Complete", $"Imported {supportedFiles.Count} file(s).", "OK");
+            await DisplayAlert("Imported", $"Imported {txts.Count + pdfs.Count} files.", "OK");
         }
 
 
@@ -426,8 +354,9 @@ namespace Read_Repeat_Study.Pages
 
         private void OnDocumentFrameLoaded(object sender, EventArgs e)
         {
-            if (sender is Microsoft.Maui.Controls.Frame frame && frame.BindingContext is ImportedDocument document)
+            if (sender is Frame frame && frame.BindingContext is ImportedDocument document)
             {
+                // Find the BoxView by name
                 var box = frame.FindByName<BoxView>("FlagColorBox");
                 if (box != null)
                 {
@@ -435,16 +364,16 @@ namespace Read_Repeat_Study.Pages
                     {
                         try
                         {
-                            box.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb(document.Flag.Color);
+                            box.BackgroundColor = Color.FromArgb(document.Flag.Color);
                         }
                         catch
                         {
-                            box.BackgroundColor = Microsoft.Maui.Graphics.Colors.Transparent;
+                            box.BackgroundColor = Colors.Transparent;
                         }
                     }
                     else
                     {
-                        box.BackgroundColor = Microsoft.Maui.Graphics.Colors.Transparent;
+                        box.BackgroundColor = Colors.Transparent;
                     }
                 }
             }
