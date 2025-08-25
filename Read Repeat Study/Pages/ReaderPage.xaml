@@ -1,100 +1,113 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Read_Repeat_Study.ReaderPage">
-    <ScrollView>
-        <Grid RowSpacing="10" Padding="16">
-            <!-- Define rows: Controls, Header, Button, Editor -->
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+             x:Class="Read_Repeat_Study.ReaderPage"
+             BackgroundColor="White">
 
-            <!--Controls for the language selection -->
-            <VerticalStackLayout Grid.Row="0">
-                <SearchBar x:Name="VoiceSearchBar"
-                           Placeholder="Search voices..."
-                           TextChanged="OnVoiceSearchTextChanged"
-                           SearchButtonPressed="OnVoiceSearchButtonPressed"
-                           Margin="0,0,0,8"/>
-                <Picker x:Name="VoicePicker"
-                        Title="Select Voice"
-                        SelectedIndexChanged="OnVoiceChanged"
-                        Focused="OnVoicePickerFocused"
-                        Margin="0,0,0,8"/>
-            </VerticalStackLayout>
+    <Grid RowSpacing="0" Padding="16">
+        <!-- Define full layout: Top (controls), Middle (editor), Bottom (playback) -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!-- Top Controls -->
+            <RowDefinition Height="*" />
+            <!-- Editor (fills space) -->
+            <RowDefinition Height="Auto" />
+            <!-- Playback Controls -->
+        </Grid.RowDefinitions>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,0,0,8">
-                <HorizontalStackLayout Grid.ColumnSpan="2" HorizontalOptions="Center" Spacing="8">
-                    <Button x:Name="EditButton"
-                            Text="Edit Content"
-                            BackgroundColor="#03DAC5"
-                            TextColor="Black"
-                            FontSize="16"
-                            CornerRadius="8"
-                            HeightRequest="48"
-                            IsVisible="True"
-                            Clicked="OnEditDocumentClicked"/>
-                    <Button x:Name="SaveButton"
-                            Text="Save Content"
-                            BackgroundColor="#018786"
-                            TextColor="White"
-                            FontSize="16"
-                            CornerRadius="8"
-                            HeightRequest="48"
-                            IsVisible="False"
-                            Clicked="OnSaveDocumentClicked"/>
-                </HorizontalStackLayout>
-            </Grid>
+        <!-- Top Controls: Voice Search + Picker + Edit/Save on same row -->
+        <Grid Grid.Row="0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Playback controls -->
-            <HorizontalStackLayout Grid.Row="2" Spacing="20" HorizontalOptions="Center" Padding="0,8,0,8">
-                <Button Text="Play"
-                        WidthRequest="80"
-                        HeightRequest="40"
-                        BackgroundColor="#6200EE"
-                        TextColor="White"
-                        CornerRadius="8"
-                        Clicked="OnPlayClicked"/>
+            <SearchBar x:Name="VoiceSearchBar"
+                       Placeholder="Search voices..."
+                       TextChanged="OnVoiceSearchTextChanged"
+                       SearchButtonPressed="OnVoiceSearchButtonPressed"
+                       Grid.Column="0" />
 
-                <Button Text="Pause"
-                        WidthRequest="80"
-                        HeightRequest="40"
-                        BackgroundColor="#6200EE"
-                        TextColor="White"
-                        CornerRadius="8" 
-                        Clicked="OnPauseClicked"/>
+            <Picker x:Name="VoicePicker"
+                    Title="Select Voice"
+                    SelectedIndexChanged="OnVoiceChanged"
+                    Focused="OnVoicePickerFocused"
+                    Grid.Column="1" />
 
-                <Button x:Name="RepeatButton"
-                        Text="Repeat"
-                        WidthRequest="80"
-                        HeightRequest="40"
-                        BackgroundColor="#6200EE"
-                        TextColor="White"
-                        CornerRadius="8"
-                        Clicked="OnRepeatClicked"/>
-            </HorizontalStackLayout>
+            <Button x:Name="EditButton"
+                    Text="Edit"
+                    BackgroundColor="#03DAC5"
+                    TextColor="Black"
+                    FontSize="14"
+                    CornerRadius="6"
+                    HeightRequest="40"
+                    Margin="0,0,0,0"
+                    IsVisible="True"
+                    Clicked="OnEditDocumentClicked"
+                    Grid.Column="2" />
 
-            <!-- Text editor framed -->
-            <Frame Grid.Row="3"
-                   BorderColor="Gray"
-                   CornerRadius="8"
-                   HasShadow="False"
-                   BackgroundColor="White"
-                   Margin="0,8,0,0">
-
-                <Editor x:Name="TxtContentEditor"
-                        IsReadOnly="True"
-                        Placeholder="File content will appear here..."
-                        BackgroundColor="White"
-                        TextColor="Black"
-                        FontSize="18"
-                        VerticalOptions="Fill"
-                        HorizontalOptions="Fill" />
-            </Frame>
+            <Button x:Name="SaveButton"
+                    Text="Save"
+                    BackgroundColor="#018786"
+                    TextColor="White"
+                    FontSize="14"
+                    CornerRadius="6"
+                    HeightRequest="40"
+                    Margin="0,0,0,0"
+                    IsVisible="False"
+                    Clicked="OnSaveDocumentClicked"
+                    Grid.Column="3" />
         </Grid>
-    </ScrollView>
 
+        <!-- Center Editor -->
+        <Frame Grid.Row="1"
+               BorderColor="Gray"
+               CornerRadius="8"
+               HasShadow="False"
+               BackgroundColor="White"
+               Margin="0,12,0,12"
+               VerticalOptions="FillAndExpand">
+            <Editor x:Name="TxtContentEditor"
+                    IsReadOnly="True"
+                    Placeholder="File content will appear here..."
+                    BackgroundColor="White"
+                    TextColor="Black"
+                    FontSize="18"
+                    VerticalOptions="FillAndExpand"
+                    HorizontalOptions="Fill" />
+        </Frame>
+
+        <!-- Bottom Playback Controls -->
+        <HorizontalStackLayout Grid.Row="2"
+                               Spacing="20"
+                               HorizontalOptions="Center"
+                               Padding="0,12,0,12">
+            <Button Text="Play"
+                    WidthRequest="80"
+                    HeightRequest="40"
+                    BackgroundColor="#6200EE"
+                    TextColor="White"
+                    CornerRadius="8"
+                    Clicked="OnPlayClicked" />
+
+            <Button Text="Pause"
+                    WidthRequest="80"
+                    HeightRequest="40"
+                    BackgroundColor="#6200EE"
+                    TextColor="White"
+                    CornerRadius="8"
+                    Clicked="OnPauseClicked" />
+
+            <Button x:Name="RepeatButton"
+                    Text="Repeat"
+                    WidthRequest="80"
+                    HeightRequest="40"
+                    BackgroundColor="#6200EE"
+                    TextColor="White"
+                    CornerRadius="8"
+                    Clicked="OnRepeatClicked" />
+        </HorizontalStackLayout>
+    </Grid>
 </ContentPage>

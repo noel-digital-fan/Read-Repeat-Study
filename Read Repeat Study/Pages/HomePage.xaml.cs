@@ -1,6 +1,5 @@
 ﻿using Read_Repeat_Study.Services;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Input;
@@ -50,34 +49,6 @@ namespace Read_Repeat_Study.Pages
                         .Replace("&lt;", "<")
                         .Replace("&gt;", ">");
         }
-
-        string ConvertToDocx(string inputPath)
-        {
-            try
-            {
-                string outputDir = Path.GetDirectoryName(inputPath)!;
-                // Use .docx as target
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "soffice",
-                    Arguments = $"--headless --convert-to docx \"{inputPath}\" --outdir \"{outputDir}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using (var process = Process.Start(startInfo))
-                {
-                    process!.WaitForExit(10000); // up to 10 seconds
-                }
-                // Build expected path
-                string docxPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(inputPath) + ".docx");
-                return File.Exists(docxPath) ? docxPath : null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
 
         protected override async void OnAppearing()
         {
@@ -360,6 +331,17 @@ namespace Read_Repeat_Study.Pages
 
                         case ".pdf":
                             content = await ExtractTextFromPdfAsync(file);
+                            break;
+                        case ".docx":
+                            using (var stream = await file.OpenReadAsync())
+                            {
+                                using var memoryStream = new MemoryStream();
+                                await stream.CopyToAsync(memoryStream);
+                                memoryStream.Position = 0;
+
+                                var docx = Xceed.Words.NET.DocX.Load(memoryStream);
+                                content = docx.Text;
+                            }
                             break;
 
                         case ".epub":
