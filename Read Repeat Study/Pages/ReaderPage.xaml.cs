@@ -52,6 +52,8 @@ public partial class ReaderPage : ContentPage
     private Task? _loadDocumentTask; // track async load
     private string? _pendingVoiceLocale; // voice locale to apply after locales load
 
+    private bool _suppressPageSave; // prevents save recursion during initial load
+
     public int DocumentId
     {
         get => _documentId;
@@ -92,6 +94,11 @@ public partial class ReaderPage : ContentPage
             SetEditMode(false);
             await PaginateAsync(_fullText);
             _pendingVoiceLocale = CurrentDocument.VoiceLocale; // remember for later application
+            
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"Loaded document: {CurrentDocument.Name}, LastPageIndex: {CurrentDocument.LastPageIndex}");
+#endif
+            
             if (StartInEdit) SetEditMode(true);
         }
     }
@@ -103,7 +110,7 @@ public partial class ReaderPage : ContentPage
         filteredLocales = systemLocales.OrderBy(l => l.Language + l.Name + l.Country).ToList();
         VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
 
-        // Ensure document load completes (if started) before applying saved voice
+        // Ensure document load completes (if started) before applying saved voice and page
         if (_loadDocumentTask != null)
         {
             try { await _loadDocumentTask; } catch { /* ignore load errors here */ }
@@ -122,6 +129,21 @@ public partial class ReaderPage : ContentPage
         await Task.Delay(50);
         ScrollToTop();
         if (StartInEdit && !_isEditing) SetEditMode(true);
+    }
+
+    protected override async void OnDisappearing()
+    {
+        base.OnDisappearing();
+        // Stop any active or paused playback
+        ttsCancel?.Cancel();
+        _isPlaying = false;
+        _isPaused = false;
+        
+        // Save current page when leaving the reader
+        if (CurrentDocument != null && !_isNewDocument)
+        {
+            await SaveCurrentPageAsync();
+        }
     }
 
     private void ApplySavedVoiceLocale()
@@ -160,6 +182,10 @@ public partial class ReaderPage : ContentPage
             _pagePhrases.Add(new());
         }
         _currentPageIndex = Math.Min(_currentPageIndex, _pages.Count - 1);
+        
+        // Restore saved page BEFORE calling UpdatePageDisplay to avoid saving during restoration
+        RestoreSavedPageIfAny();
+        
         UpdatePageDisplay();
         return Task.CompletedTask;
     }
@@ -188,6 +214,10 @@ public partial class ReaderPage : ContentPage
         PreviousPageButton.IsEnabled = _currentPageIndex > 0 && !_isPlaying;
         NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1 && !_isPlaying;
         ScrollToTop();
+
+        // Save current page when it changes
+        if (!_suppressPageSave)
+            _ = SaveCurrentPageAsync();
     }
 
     private void RenderPhrases()
@@ -474,6 +504,57 @@ public partial class ReaderPage : ContentPage
         if (_completedDocument && !_isPlaying)
         {
             OnPlayClicked(sender, e);
+        }
+    }
+
+    // Helper methods for page saving and restoration
+    private async Task SaveCurrentPageAsync()
+    {
+        if (CurrentDocument == null || _suppressPageSave || _isNewDocument) return;
+        
+        try
+        {
+            // Avoid frequent disk writes if unchanged
+            if (CurrentDocument.LastPageIndex != _currentPageIndex)
+            {
+                CurrentDocument.LastPageIndex = _currentPageIndex;
+                await _db.SaveDocumentAsync(CurrentDocument);
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine($"Saved current page: {_currentPageIndex + 1} for document: {CurrentDocument.Name}");
+#endif
+            }
+        }
+        catch (Exception ex)
+        {
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"Error saving current page: {ex.Message}");
+#endif
+        }
+    }
+
+    private void RestoreSavedPageIfAny()
+    {
+        if (CurrentDocument?.LastPageIndex is int idx &&
+            idx >= 0 && idx < _pages.Count)
+        {
+            _suppressPageSave = true;
+            _currentPageIndex = idx;
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"Restored last page: {idx + 1} for document: {CurrentDocument.Name}");
+#endif
+            // Note: Don't call UpdatePageDisplay here as it will be called after this method
+            _suppressPageSave = false;
+        }
+    }
+
+    private async void OnJumpToPageClicked(object sender, EventArgs e)
+    {
+        if (_pages.Count <= 1) return;
+        var input = await DisplayPromptAsync("Jump To Page", $"Enter page number (1 - {_pages.Count})", "Go", "Cancel", keyboard: Keyboard.Numeric);
+        if (int.TryParse(input, out int p) && p >= 1 && p <= _pages.Count)
+        {
+            _currentPageIndex = p - 1;
+            UpdatePageDisplay();
         }
     }
 }

@@ -1,39 +1,44 @@
 ﻿using Read_Repeat_Study;
 using SQLite;
-using System;
 using System.ComponentModel;
 
-public class ImportedDocument : INotifyPropertyChanged
+namespace Read_Repeat_Study
 {
-    [PrimaryKey, AutoIncrement]
-    public int ID { get; set; }
-
-    public string Name { get; set; }
-    public string FilePath { get; set; }
-    public string Content { get; set; }
-    public DateTime ImportedDate { get; set; }
-    public int? FlagId { get; set; }
-
-    public string VoiceLocale { get; set; }
-
-    [Ignore]  // Navigation property, ignored by SQLite
-    public Flags Flag { get; set; }
-
-    private bool isSelected;
-
-    [Ignore]
-    public bool IsSelected
+    public class ImportedDocument : INotifyPropertyChanged
     {
-        get => isSelected;
-        set
+        [PrimaryKey, AutoIncrement]
+        public int ID { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public DateTime ImportedDate { get; set; }
+        public int? FlagId { get; set; }
+
+        public string VoiceLocale { get; set; } = string.Empty;
+
+        // Add LastPageIndex property to save the last page viewed
+        public int? LastPageIndex { get; set; }
+
+        [Ignore]  // Navigation property, ignored by SQLite
+        public Flags? Flag { get; set; }
+
+        private bool isSelected;
+
+        [Ignore]
+        public bool IsSelected
         {
-            if (isSelected != value)
+            get => isSelected;
+            set
             {
-                isSelected = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+                if (isSelected != value)
+                {
+                    isSelected = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+                }
             }
         }
-    }
 
-    public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
 }

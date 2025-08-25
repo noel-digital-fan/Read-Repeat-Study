@@ -48,19 +48,66 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="PreviousPageButton" Text="◀" WidthRequest="40" HeightRequest="35" FontSize="16" BackgroundColor="#6200EE" TextColor="White" CornerRadius="5" Clicked="OnPreviousPageClicked" Grid.Column="0" />
-                    <Label x:Name="PageInfoLabel" Text="Page 1 of 1" FontSize="14" TextColor="Black" VerticalOptions="Center" HorizontalOptions="Center" Grid.Column="1" />
-                    <Button x:Name="NextPageButton" Text="▶" WidthRequest="40" HeightRequest="35" FontSize="16" BackgroundColor="#6200EE" TextColor="White" CornerRadius="5" Clicked="OnNextPageClicked" Grid.Column="2" />
+                    <Button x:Name="PreviousPageButton"
+                            Text="◀"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="16"
+                            BackgroundColor="#6200EE"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnPreviousPageClicked"
+                            Grid.Column="0" />
+                    <Label x:Name="PageInfoLabel"
+                           Text="Page 1 of 1"
+                           FontSize="14"
+                           TextColor="Black"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center"
+                           Grid.Column="1" />
+                    <Button x:Name="NextPageButton"
+                            Text="▶"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="16"
+                            BackgroundColor="#6200EE"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnNextPageClicked"
+                            Grid.Column="2" />
+                    <Button x:Name="JumpPageButton"
+                            WidthRequest="40"
+                            HeightRequest="40"
+                            BackgroundColor="#FF6B35"
+                            Padding="1"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnJumpToPageClicked"
+                            Grid.Column="3"
+                            ImageSource="jump_page.png" />
                 </Grid>
             </Grid>
         </Frame>
 
         <!-- Playback Controls -->
         <HorizontalStackLayout Grid.Row="2" Spacing="20" HorizontalOptions="Center" Padding="0,12,0,12">
-            <Button Text="Play" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPlayClicked" />
-            <Button Text="Pause" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPauseClicked" />
-            <Button x:Name="RepeatButton" Text="Repeat" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnRepeatClicked" />
+            <Button WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPlayClicked">
+                <Button.ImageSource>
+                    <FileImageSource File="play.png" />
+                </Button.ImageSource>
+            </Button>
+            <Button WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPauseClicked">
+                <Button.ImageSource>
+                    <FileImageSource File="pause.png" />
+                </Button.ImageSource>
+            </Button>
+            <Button x:Name="RepeatButton" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnRepeatClicked">
+                <Button.ImageSource>
+                    <FileImageSource File="repeat.png" />
+                </Button.ImageSource>
+            </Button>
         </HorizontalStackLayout>
     </Grid>
 </ContentPage>

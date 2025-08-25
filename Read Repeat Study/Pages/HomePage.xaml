@@ -3,9 +3,17 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    xmlns:local="clr-namespace:Read_Repeat_Study.Classes"
     x:Class="Read_Repeat_Study.Pages.HomePage"
     x:Name="HomePageRoot"
     Title="Home">
+
+    <!-- Add this to your ContentPage resources -->
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <local:MathConverter x:Key="MathConverter" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
 
     <AbsoluteLayout>
 
@@ -60,16 +68,16 @@
                                                       CommandParameter="{Binding}" />
                             </Frame.GestureRecognizers>
                             <Grid ColumnDefinitions="Auto,*,Auto"
-                                  RowDefinitions="25,25"
+                                  RowDefinitions="25,25,15"
                                   ColumnSpacing="12"
-                                  HeightRequest="50">
+                                  HeightRequest="65">
                                 <BoxView x:Name="FlagColorBox"
                                          Grid.Column="0"
-                                         Grid.RowSpan="2"
+                                         Grid.RowSpan="3"
                                          WidthRequest="4"
                                          VerticalOptions="Fill"
                                          BackgroundColor="Transparent"/>
-                                <VerticalStackLayout Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Spacing="4">
+                                <VerticalStackLayout Grid.Column="1" Grid.Row="0" Grid.RowSpan="3" Spacing="2">
                                     <Label Text="{Binding Name}"
                                            FontSize="16"
                                            FontAttributes="Bold"
@@ -77,9 +85,21 @@
                                     <Label Text="{Binding ImportedDate, StringFormat='Imported: {0:MMM dd, yyyy HH:mm}'}"
                                            FontSize="12"
                                            TextColor="Gray"/>
+                                    <Label FontSize="11" TextColor="#6200EE" FontAttributes="Italic">
+                                        <Label.Text>
+                                            <MultiBinding StringFormat="Currently on page: {0}">
+                                                <Binding Path="LastPageIndex" Converter="{StaticResource MathConverter}" />
+                                            </MultiBinding>
+                                        </Label.Text>
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding LastPageIndex}" Value="{x:Null}">
+                                                <Setter Property="Text" Value="No reading progress" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </VerticalStackLayout>
                                 <Label Grid.Column="2"
-                                       Grid.RowSpan="2"
+                                       Grid.RowSpan="3"
                                        Text="{Binding Flag.Name}"
                                        HorizontalTextAlignment="Center"
                                        VerticalTextAlignment="Center"
