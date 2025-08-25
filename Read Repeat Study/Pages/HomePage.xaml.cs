@@ -487,11 +487,11 @@ namespace Read_Repeat_Study.Pages
 
         private void OnEditDocumentClicked(object sender, EventArgs e)
         {
-            // Edit the first selected document, or show a message if none selected
             var doc = selectedDocuments.FirstOrDefault();
             if (doc != null)
             {
-                Shell.Current.GoToAsync($"ReaderPage?docId={doc.ID}");
+                // Navigate with edit=true so ReaderPage starts in edit mode
+                Shell.Current.GoToAsync($"ReaderPage?docId={doc.ID}&edit=true");
             }
             else
             {

@@ -1,852 +1,479 @@
 ﻿using Read_Repeat_Study.Services;
 using System.Text.RegularExpressions;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 
-namespace Read_Repeat_Study
+namespace Read_Repeat_Study;
+
+public class PhraseViewModel : INotifyPropertyChanged
 {
-    [QueryProperty(nameof(DocumentId), "docId")]
-    public partial class ReaderPage : ContentPage
+    private Color _textColor = Colors.Black;
+    private Color _backgroundColor = Colors.Transparent;
+    public string Text { get; set; } = string.Empty;
+    public Color TextColor { get => _textColor; set { if (_textColor != value) { _textColor = value; OnPropertyChanged(); } } }
+    public Color BackgroundColor { get => _backgroundColor; set { if (_backgroundColor != value) { _backgroundColor = value; OnPropertyChanged(); } } }
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+[QueryProperty(nameof(DocumentId), "docId")]
+[QueryProperty(nameof(StartInEdit), "edit")]
+public partial class ReaderPage : ContentPage
+{
+    private readonly DatabaseService _db;
+    private ImportedDocument? CurrentDocument;
+    private int _documentId;
+    private bool _isNewDocument;
+    private readonly List<string> _pages = new();
+    private readonly List<List<PhraseViewModel>> _pagePhrases = new();
+    private int _currentPageIndex;
+    private string _fullText = string.Empty;
+    private bool _isPlaying;
+    private bool _isPaused;
+    private int _resumePageIndex;
+    private int _resumePhraseIndex;
+    private int _currentPhraseIndex;
+    private CancellationTokenSource? ttsCancel;
+    private bool _isEditing;
+    private List<Locale> systemLocales = new();
+    private List<Locale> filteredLocales = new();
+    private Locale? selectedLocale;
+    private string pendingSearchText = string.Empty;
+    public bool StartInEdit { get; set; }
+    public ObservableCollection<PhraseViewModel> CurrentPagePhrases { get; } = new();
+
+    private bool _completedDocument; // end-of-document playback finished
+    private int _lastPhrasePage;
+    private int _lastPhraseIndex;
+    private bool _userSelected; // user explicitly tapped a phrase
+    private int _selectedStartPage;
+    private int _selectedStartPhrase;
+
+    private Task? _loadDocumentTask; // track async load
+    private string? _pendingVoiceLocale; // voice locale to apply after locales load
+
+    public int DocumentId
     {
-        private bool isRepeating = false;
-        CancellationTokenSource ttsCancel;
-        private List<Locale> systemLocales = new();
-        private List<Locale> filteredLocales = new();
-        private Locale selectedLocale;
-        private string pendingSearchText = "";
-        private ImportedDocument CurrentDocument;
-        private readonly DatabaseService _db;
-        private bool isNewDocument;
-        private int _documentId;
-
-        // Pagination properties
-        private List<string> _pages = new();
-        private int _currentPageIndex = 0;
-        private string _fullText = "";
-        private double _availablePageHeight = 0;
-        private double _availablePageWidth = 0;
-        private bool _isEditingPage = false;
-        private Label _measurementLabel;
-
-        public int DocumentId
+        get => _documentId;
+        set
         {
-            get => _documentId;
-            set
+            _documentId = value;
+            if (_documentId <= 0)
             {
-                _documentId = value;
-                if (_documentId <= 0)  // Check for -1 or any non-positive ID indicating new document
-                {
-                    isNewDocument = true;
-                    CurrentDocument = new ImportedDocument { Name = "Untitled", Content = "", VoiceLocale = null };
-                    _fullText = "";
-                    Title = "New Document";
-                    SetEditorState(true);
-                    _ = Task.Run(async () => await PaginateTextAsync(""));
-                }
-                else
-                {
-                    isNewDocument = false;
-                    LoadDocument(value);
-                }
+                _isNewDocument = true;
+                CurrentDocument = new ImportedDocument { Name = "Untitled", Content = string.Empty };
+                _fullText = string.Empty;
+                Title = "New Document";
+                SetEditMode(true);
+                _ = PaginateAsync(_fullText);
+            }
+            else
+            {
+                _isNewDocument = false;
+                _loadDocumentTask = LoadDocumentAsync(_documentId); // start async load
             }
         }
+    }
 
-        public ReaderPage(DatabaseService db)
+    public ReaderPage(DatabaseService db)
+    {
+        InitializeComponent();
+        _db = db;
+        BindingContext = this;
+    }
+
+    private async Task LoadDocumentAsync(int id)
+    {
+        CurrentDocument = await _db.GetDocumentByIdAsync(id);
+        if (CurrentDocument != null)
         {
-            InitializeComponent();
-            _db = db;
-            
-            // Create a hidden measurement label with the same properties as the display label
-            _measurementLabel = new Label
+            _fullText = CurrentDocument.Content ?? string.Empty;
+            Title = CurrentDocument.Name;
+            SetEditMode(false);
+            await PaginateAsync(_fullText);
+            _pendingVoiceLocale = CurrentDocument.VoiceLocale; // remember for later application
+            if (StartInEdit) SetEditMode(true);
+        }
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
+        filteredLocales = systemLocales.OrderBy(l => l.Language + l.Name + l.Country).ToList();
+        VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+
+        // Ensure document load completes (if started) before applying saved voice
+        if (_loadDocumentTask != null)
+        {
+            try { await _loadDocumentTask; } catch { /* ignore load errors here */ }
+        }
+
+        // Apply saved voice if available
+        if (_pendingVoiceLocale != null)
+        {
+            ApplySavedVoiceLocale();
+        }
+        else if (CurrentDocument?.VoiceLocale != null)
+        {
+            ApplySavedVoiceLocale();
+        }
+
+        await Task.Delay(50);
+        ScrollToTop();
+        if (StartInEdit && !_isEditing) SetEditMode(true);
+    }
+
+    private void ApplySavedVoiceLocale()
+    {
+        string? target = _pendingVoiceLocale ?? CurrentDocument?.VoiceLocale;
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var idx = filteredLocales.FindIndex(l => $"{l.Language}-{l.Country}-{l.Name}" == target);
+        if (idx >= 0)
+        {
+            VoicePicker.SelectedIndex = idx;
+            selectedLocale = filteredLocales[idx];
+            _pendingVoiceLocale = null; // applied
+        }
+    }
+
+    private Task PaginateAsync(string text)
+    {
+        _pages.Clear();
+        _pagePhrases.Clear();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _pages.Add(string.Empty);
+            _pagePhrases.Add(new());
+            _currentPageIndex = 0;
+            UpdatePageDisplay();
+            return Task.CompletedTask;
+        }
+        foreach (var block in text.Split(new[] { "\n\n" }, StringSplitOptions.None).Select(p => p.Trim()).Where(p => p.Length > 0))
+        {
+            _pages.Add(block);
+            _pagePhrases.Add(CreatePhrasesFromText(block));
+        }
+        if (_pages.Count == 0)
+        {
+            _pages.Add(string.Empty);
+            _pagePhrases.Add(new());
+        }
+        _currentPageIndex = Math.Min(_currentPageIndex, _pages.Count - 1);
+        UpdatePageDisplay();
+        return Task.CompletedTask;
+    }
+
+    private List<PhraseViewModel> CreatePhrasesFromText(string text)
+    {
+        var list = new List<PhraseViewModel>();
+        if (string.IsNullOrWhiteSpace(text)) return list;
+        var pattern = @"(?<=[.!?:])\s+|(?<=;)\s+|(?:\r?\n){1,}";
+        foreach (var part in Regex.Split(text, pattern))
+        {
+            var t = part.Trim();
+            if (!string.IsNullOrEmpty(t)) list.Add(new PhraseViewModel { Text = t });
+        }
+        if (list.Count == 0) list.Add(new PhraseViewModel { Text = text });
+        return list;
+    }
+
+    private void UpdatePageDisplay()
+    {
+        if (_currentPageIndex < 0 || _currentPageIndex >= _pages.Count) return;
+        CurrentPagePhrases.Clear();
+        foreach (var p in _pagePhrases[_currentPageIndex]) CurrentPagePhrases.Add(p);
+        if (!_isEditing) RenderPhrases();
+        PageInfoLabel.Text = $"Page {_currentPageIndex + 1} of {_pages.Count}";
+        PreviousPageButton.IsEnabled = _currentPageIndex > 0 && !_isPlaying;
+        NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1 && !_isPlaying;
+        ScrollToTop();
+    }
+
+    private void RenderPhrases()
+    {
+        PhraseStack.Children.Clear();
+        for (int i = 0; i < CurrentPagePhrases.Count; i++)
+        {
+            var vm = CurrentPagePhrases[i];
+            var lbl = new Label
             {
-                FontSize = 18, // Match PageContentLabel
-                LineBreakMode = LineBreakMode.WordWrap,
-                TextColor = Colors.Transparent,
-                IsVisible = false,
-                HorizontalOptions = LayoutOptions.Fill,
-                VerticalOptions = LayoutOptions.Start
+                Text = vm.Text,
+                FontSize = 15,
+                TextColor = vm.TextColor,
+                BackgroundColor = vm.BackgroundColor,
+                LineBreakMode = LineBreakMode.WordWrap
             };
-        }
-
-        private async void LoadDocument(int id)
-        {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Loading document with ID: {id}");
-#endif
-            CurrentDocument = await _db.GetDocumentByIdAsync(id);
-            if (CurrentDocument != null)
+            int capture = i;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += async (s, e) =>
             {
-                _fullText = CurrentDocument.Content ?? "";
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine($"Document loaded: {CurrentDocument.Name}, Content length: {_fullText.Length}");
-#endif
-                Title = CurrentDocument.Name;
-                SetEditorState(false);
-                
-                await PaginateTextAsync(_fullText);
+                // User explicitly selected a phrase; override any paused resume position
+                _userSelected = true;
+                _isPaused = false; // prevent PlayFromAsync from using resume indices
+                _selectedStartPage = _currentPageIndex;
+                _selectedStartPhrase = capture;
+                await PlayFromAsync(_currentPageIndex, capture);
+            };
+            lbl.GestureRecognizers.Add(tap);
+            vm.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(PhraseViewModel.TextColor)) lbl.TextColor = vm.TextColor;
+                if (e.PropertyName == nameof(PhraseViewModel.BackgroundColor)) lbl.BackgroundColor = vm.BackgroundColor;
+            };
+            PhraseStack.Children.Add(lbl);
+        }
+    }
 
-                // Set saved voice locale after locales are loaded
-                if (!string.IsNullOrWhiteSpace(CurrentDocument.VoiceLocale) && filteredLocales.Any())
+    private void ScrollToTop() => PhraseScrollView.ScrollToAsync(0, 0, false);
+    private void ScrollToPhrase(int phraseIndex)
+    {
+        if (phraseIndex < 0 || phraseIndex >= PhraseStack.Children.Count) return;
+        if (PhraseStack.Children[phraseIndex] is VisualElement ve)
+            PhraseScrollView.ScrollToAsync(ve, ScrollToPosition.Center, true);
+    }
+
+    private async Task PlayFromAsync(int startPage, int startPhrase)
+    {
+        if (selectedLocale == null)
+        {
+            await DisplayAlert("Voice Required", "Select a voice first.", "OK");
+            return;
+        }
+        if (_pages.Count == 0) return;
+        // Only apply resume indices if paused AND user did not tap a new phrase
+        if (_isPaused && !_userSelected)
+        {
+            startPage = _resumePageIndex;
+            startPhrase = _resumePhraseIndex;
+            _isPaused = false;
+        }
+        ttsCancel?.Cancel();
+        ttsCancel = new CancellationTokenSource();
+        var token = ttsCancel.Token;
+        _isPlaying = true;
+        _completedDocument = false; // starting new playback
+        try
+        {
+            for (int p = startPage; p < _pages.Count; p++)
+            {
+                _currentPageIndex = p;
+                UpdatePageDisplay();
+                int phraseStart = (p == startPage ? startPhrase : 0);
+                for (int i = phraseStart; i < CurrentPagePhrases.Count; i++)
                 {
-                    SetSavedVoiceLocale();
+                    token.ThrowIfCancellationRequested();
+                    _currentPhraseIndex = i;
+                    HighlightPhrase(i);
+                    ScrollToPhrase(i);
+                    await TextToSpeech.Default.SpeakAsync(CurrentPagePhrases[i].Text, new SpeechOptions { Locale = selectedLocale }, token);
+                    DimPhrase(i);
                 }
+            }
+            // Successful completion reached end of document
+            if (!_isPaused && !_userSelected)
+            {
+                _completedDocument = true;
+                _lastPhrasePage = _currentPageIndex;
+                _lastPhraseIndex = _currentPhraseIndex;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (_isPaused)
+            {
+                _resumePageIndex = _currentPageIndex;
+                _resumePhraseIndex = _currentPhraseIndex;
             }
             else
             {
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine($"No document found with ID: {id}");
-#endif
+                ResetHighlighting();
+            }
+            _completedDocument = false; // cancellation means no completion
+        }
+        finally
+        {
+            _isPlaying = false;
+            if (!_isPaused)
+            {
+                _resumePageIndex = 0;
+                _resumePhraseIndex = 0;
+            }
+            PreviousPageButton.IsEnabled = _currentPageIndex > 0;
+            NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1;
+            _userSelected = false; // consume user selection after run
+        }
+    }
+
+    private void HighlightPhrase(int index)
+    {
+        for (int i = 0; i < CurrentPagePhrases.Count; i++)
+        {
+            var vm = CurrentPagePhrases[i];
+            if (i == index)
+            {
+                vm.BackgroundColor = Colors.Yellow;
+                vm.TextColor = Colors.Black;
+            }
+            else if (vm.BackgroundColor == Colors.Transparent)
+            {
+                vm.TextColor = Colors.Black;
             }
         }
-
-        protected override async void OnAppearing()
+    }
+    private void DimPhrase(int index)
+    {
+        if (index >= 0 && index < CurrentPagePhrases.Count)
         {
-            base.OnAppearing();
+            var vm = CurrentPagePhrases[index];
+            vm.BackgroundColor = Colors.Transparent;
+            vm.TextColor = Colors.Gray;
+        }
+    }
+    private void ResetHighlighting()
+    {
+        foreach (var vm in CurrentPagePhrases)
+        {
+            vm.BackgroundColor = Colors.Transparent;
+            vm.TextColor = Colors.Black;
+        }
+    }
 
-            // Load system locales and bind picker
-            systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
-            filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+    private void OnPreviousPageClicked(object sender, EventArgs e)
+    {
+        if (_isPlaying) return;
+        if (_currentPageIndex > 0)
+        {
+            _currentPageIndex--;
+            UpdatePageDisplay();
+        }
+    }
+    private void OnNextPageClicked(object sender, EventArgs e)
+    {
+        if (_isPlaying) return;
+        if (_currentPageIndex < _pages.Count - 1)
+        {
+            _currentPageIndex++;
+            UpdatePageDisplay();
+        }
+    }
+
+    private void SetEditMode(bool editing)
+    {
+        if (_isEditing && !editing)
+        {
+            _fullText = PageContentEditor.Text ?? string.Empty;
+            _ = PaginateAsync(_fullText);
+        }
+        _isEditing = editing;
+        PageContentEditor.IsVisible = editing;
+        PhraseScrollView.IsVisible = !editing;
+        EditButton.IsVisible = !editing;
+        SaveButton.IsVisible = editing;
+        if (editing)
+        {
+            PageContentEditor.Text = _fullText;
+            PageContentEditor.Focus();
+        }
+        else if (CurrentPagePhrases.Any())
+        {
+            RenderPhrases();
+            ScrollToTop();
+        }
+    }
+    private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true);
+    private void OnSaveDocumentClicked(object sender, EventArgs e) => SetEditMode(false);
+
+    private void OnVoicePickerFocused(object sender, FocusEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(pendingSearchText))
+        {
+            filteredLocales = systemLocales.OrderBy(l => l.Language + l.Name + l.Country).ToList();
             VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+        }
+    }
+    private void OnVoiceChanged(object sender, EventArgs e)
+    {
+        if (VoicePicker.SelectedIndex >= 0)
+        {
+            selectedLocale = filteredLocales[VoicePicker.SelectedIndex];
+            _ = SaveVoiceSelectionAsync();
+        }
+    }
+    private async Task SaveVoiceSelectionAsync()
+    {
+        if (CurrentDocument != null && selectedLocale != null)
+        {
+            CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
+            await _db.SaveDocumentAsync(CurrentDocument);
+        }
+    }
+    private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e) => pendingSearchText = e.NewTextValue ?? string.Empty;
+    private void OnVoiceSearchButtonPressed(object sender, EventArgs e)
+    {
+        var search = pendingSearchText.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(search))
+            filteredLocales = systemLocales.OrderBy(l => l.Language + l.Name + l.Country).ToList();
+        else
+            filteredLocales = systemLocales.Where(l => l.Language.ToLowerInvariant().Contains(search) || l.Name.ToLowerInvariant().Contains(search) || l.Country.ToLowerInvariant().Contains(search)).OrderBy(l => l.Language + l.Name + l.Country).ToList();
+        VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
+    }
 
-            // If CurrentDocument loaded before OnAppearing, set voice picker
-            if (CurrentDocument != null && !string.IsNullOrWhiteSpace(CurrentDocument.VoiceLocale))
-            {
-                SetSavedVoiceLocale();
-            }
-            
-            // Force a size recalculation after appearing
-            await Task.Delay(200);
-            await RecalculatePageSizeAsync();
-        }
-        
-        protected override async void OnSizeAllocated(double width, double height)
+    private async void OnPlayClicked(object sender, EventArgs e)
+    {
+        if (_isPlaying) return;
+        if (_isPaused)
         {
-            base.OnSizeAllocated(width, height);
-            
-            // Wait for layout to complete
-            await Task.Delay(100);
-            await RecalculatePageSizeAsync();
+            await PlayFromAsync(_resumePageIndex, _resumePhraseIndex);
+            return;
         }
-        
-        private async Task RecalculatePageSizeAsync()
+        if (_userSelected)
         {
-            // Wait for layout to stabilize
-            await Task.Delay(100);
-            
-            if (PageContainer != null && PageContainer.Height > 0 && PageContainer.Width > 0)
-            {
-                var oldHeight = _availablePageHeight;
-                var oldWidth = _availablePageWidth;
-                
-                // Calculate new dimensions accounting for:
-                // - Frame padding/margin (12px margin + border)
-                // - Label padding (16px on each side = 32px total)
-                _availablePageHeight = PageContainer.Height - 32; // Account for Label padding
-                _availablePageWidth = PageContainer.Width - 32;   // Account for Label padding
-                
-                // Ensure minimum dimensions
-                _availablePageHeight = Math.Max(_availablePageHeight, 100);
-                _availablePageWidth = Math.Max(_availablePageWidth, 100);
-                
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine($"Container size: {PageContainer.Height}x{PageContainer.Width}, Available: {_availablePageHeight}x{_availablePageWidth}");
-#endif
-                
-                // Only re-paginate if dimensions changed significantly (more than 10px)
-                if (Math.Abs(oldHeight - _availablePageHeight) > 10 || 
-                    Math.Abs(oldWidth - _availablePageWidth) > 10)
-                {
-                    _measurementLabel.WidthRequest = _availablePageWidth;
-                    
-                    if (!string.IsNullOrEmpty(_fullText))
-                    {
-                        await PaginateTextAsync(_fullText);
-                    }
-                }
-            }
-            else
-            {
-#if DEBUG
-                var containerInfo = PageContainer != null ? $"Height: {PageContainer.Height}, Width: {PageContainer.Width}" : "PageContainer is null";
-                System.Diagnostics.Debug.WriteLine($"Container not ready for pagination: {containerInfo}");
-#endif
-            }
+            await PlayFromAsync(_selectedStartPage, _selectedStartPhrase);
+            return;
         }
-        
-        // Add this method to manually trigger re-pagination when needed
-        public async Task RefreshPaginationAsync()
+        if (_completedDocument)
         {
-            if (!string.IsNullOrEmpty(_fullText))
+            _lastPhrasePage = Math.Clamp(_lastPhrasePage, 0, _pages.Count - 1);
+            var phraseList = _pagePhrases[_lastPhrasePage];
+            if (phraseList.Count == 0) return;
+            _lastPhraseIndex = Math.Clamp(_lastPhraseIndex, 0, phraseList.Count - 1);
+            if (selectedLocale == null)
             {
-                await RecalculatePageSizeAsync();
-            }
-        }
-        
-        private async Task PaginateTextAsync(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-            {
-                _pages = new List<string> { "" };
-                _currentPageIndex = 0;
-                UpdatePageDisplay();
+                await DisplayAlert("Voice Required", "Select a voice first.", "OK");
                 return;
             }
-
-            // Don't paginate if we don't have proper dimensions yet
-            if (_availablePageHeight <= 0 || _availablePageWidth <= 0)
-            {
-                _pages = new List<string> { text };
-                _currentPageIndex = 0;
-                UpdatePageDisplay();
-                return;
-            }
-
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Paginating with height: {_availablePageHeight}, width: {_availablePageWidth}");
-#endif
-
-            _pages.Clear();
-            
-            // Use a much more efficient algorithm: estimate characters per page first
-            var estimatedCharsPerPage = await EstimateCharactersPerPageAsync();
-            
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Estimated chars per page: {estimatedCharsPerPage}");
-#endif
-
-            // Split text into words to work with manageable chunks
-            var words = text.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            var currentPageText = "";
-            var currentWordIndex = 0;
-
-            while (currentWordIndex < words.Length)
-            {
-                // Build a page starting with estimated character count
-                var testPageText = "";
-                var wordsInPage = 0;
-                
-                // Add words until we approach the estimated limit
-                while (currentWordIndex < words.Length && 
-                       testPageText.Length < estimatedCharsPerPage * 0.8) // Use 80% of estimate as safety margin
-                {
-                    if (string.IsNullOrEmpty(testPageText))
-                        testPageText = words[currentWordIndex];
-                    else
-                        testPageText += " " + words[currentWordIndex];
-                    
-                    currentWordIndex++;
-                    wordsInPage++;
-                }
-
-                // Now fine-tune by measuring actual height
-                var actualHeight = await MeasureTextHeightAsync(testPageText);
-                
-                // If too big, remove words until it fits
-                while (actualHeight > (_availablePageHeight - 20) && wordsInPage > 1)
-                {
-                    currentWordIndex--; // Put the last word back
-                    wordsInPage--;
-                    
-                    // Rebuild test text without the last word
-                    testPageText = string.Join(" ", words.Skip(currentWordIndex - wordsInPage).Take(wordsInPage));
-                    actualHeight = await MeasureTextHeightAsync(testPageText);
-                }
-
-                // If still too big and only one word, split the word
-                if (actualHeight > (_availablePageHeight - 20) && wordsInPage == 1)
-                {
-                    var longWord = words[currentWordIndex - 1];
-                    var partialWord = "";
-                    
-                    // Add characters until it doesn't fit
-                    for (int i = 0; i < longWord.Length; i++)
-                    {
-                        var testChar = partialWord + longWord[i];
-                        var charHeight = await MeasureTextHeightAsync(testChar);
-                        
-                        if (charHeight > (_availablePageHeight - 20) && !string.IsNullOrEmpty(partialWord))
-                        {
-                            break;
-                        }
-                        partialWord = testChar;
-                    }
-                    
-                    testPageText = partialWord;
-                    // Put the rest of the word back for next page
-                    words[currentWordIndex - 1] = longWord.Substring(partialWord.Length);
-                    currentWordIndex--;
-                }
-
-                _pages.Add(testPageText.Trim());
-            }
-
-            // Ensure we have at least one page
-            if (!_pages.Any())
-            {
-                _pages.Add("");
-            }
-
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Pagination complete: {_pages.Count} pages created");
-#endif
-
-            _currentPageIndex = Math.Min(_currentPageIndex, _pages.Count - 1);
-            await MainThread.InvokeOnMainThreadAsync(() => UpdatePageDisplay());
-        }
-
-        private async Task<int> EstimateCharactersPerPageAsync()
-        {
-            // Create a sample text with reasonable line length
-            var sampleText = new string('X', 50); // 50 characters per line
-            var lineHeight = await MeasureTextHeightAsync(sampleText);
-            
-            if (lineHeight <= 0) return 2000; // Fallback estimate
-            
-            var availableLines = Math.Max(1, (int)((_availablePageHeight - 40) / lineHeight)); // 40px buffer
-            var estimatedChars = availableLines * 45; // Slightly less than 50 chars per line for safety
-            
-            return Math.Max(500, estimatedChars); // Minimum 500 characters per page
-        }
-
-        private async Task<double> MeasureTextHeightAsync(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-                return 0;
-
-            var tcs = new TaskCompletionSource<double>();
-
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                try
-                {
-                    // Ensure measurement label matches display label properties exactly
-                    _measurementLabel.Text = text;
-                    _measurementLabel.WidthRequest = _availablePageWidth;
-                    _measurementLabel.FontSize = PageContentLabel.FontSize;
-                    _measurementLabel.LineBreakMode = PageContentLabel.LineBreakMode;
-                    _measurementLabel.FontFamily = PageContentLabel.FontFamily;
-                    
-                    // Force measure with exact constraints
-                    var size = _measurementLabel.Measure(_availablePageWidth, double.PositiveInfinity);
-                    
-                    // Add a small buffer to account for line spacing and rendering differences
-                    var measuredHeight = size.Height + 5;
-                    tcs.SetResult(measuredHeight);
-                }
-                catch (Exception ex)
-                {
-#if DEBUG
-                    System.Diagnostics.Debug.WriteLine($"Text measurement error: {ex.Message}");
-#endif
-                    // Improved fallback estimation
-                    var lines = Math.Max(1, text.Split('\n').Length);
-                    var estimatedLinesFromWidth = Math.Max(1, (int)Math.Ceiling((double)text.Length / 50)); 
-                    var totalEstimatedLines = Math.Max(lines, estimatedLinesFromWidth);
-                    var estimatedHeight = totalEstimatedLines * 24; // Standard line height
-                    tcs.SetResult(estimatedHeight);
-                }
-            });
-
-            return await tcs.Task;
-        }
-
-        private List<string> SplitIntoPhrases(string text)
-        {
-            var phrases = new List<string>();
-            
-            // First split by paragraphs to preserve document structure
-            var paragraphs = text.Split(new[] { "\n\n", "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
-            
-            foreach (var paragraph in paragraphs)
-            {
-                // Split paragraph into sentences
-                var sentences = SplitIntoSentences(paragraph);
-                
-                foreach (var sentence in sentences)
-                {
-                    var trimmed = sentence.Trim();
-                    if (!string.IsNullOrEmpty(trimmed))
-                    {
-                        phrases.Add(trimmed);
-                    }
-                }
-                
-                // Add paragraph break as a separate "phrase"
-                if (paragraphs.Length > 1) // Only if there are multiple paragraphs
-                {
-                    phrases.Add("\n\n");
-                }
-            }
-            
-            return phrases;
-        }
-
-        private List<string> SplitIntoSentences(string text)
-        {
-            var sentences = new List<string>();
-            
-            // Split by sentence endings, including various punctuation
-            var pattern = @"(?<=[.!?])\s+|(?<=:)\s+(?=[A-Z])|(?<=;)\s+";
-            var parts = Regex.Split(text, pattern);
-            
-            foreach (var part in parts)
-            {
-                if (!string.IsNullOrWhiteSpace(part))
-                {
-                    sentences.Add(part);
-                }
-            }
-            
-            // If no sentence breaks found, try splitting by commas (for very long sentences)
-            if (sentences.Count == 1 && sentences[0].Length > 200)
-            {
-                var commaParts = sentences[0].Split(',');
-                sentences.Clear();
-                var currentChunk = "";
-                
-                foreach (var part in commaParts)
-                {
-                    if (string.IsNullOrEmpty(currentChunk))
-                    {
-                        currentChunk = part.Trim();
-                    }
-                    else if ((currentChunk + ", " + part.Trim()).Length > 150) // Reasonable chunk size
-                    {
-                        sentences.Add(currentChunk + ",");
-                        currentChunk = part.Trim();
-                    }
-                    else
-                    {
-                        currentChunk += ", " + part.Trim();
-                    }
-                }
-                
-                if (!string.IsNullOrEmpty(currentChunk))
-                {
-                    sentences.Add(currentChunk);
-                }
-            }
-            
-            return sentences;
-        }
-
-        private void UpdatePageDisplay()
-        {
-            if (_pages.Any() && _currentPageIndex >= 0 && _currentPageIndex < _pages.Count)
-            {
-                PageContentLabel.Text = _pages[_currentPageIndex];
-                PageInfoLabel.Text = $"Page {_currentPageIndex + 1} of {_pages.Count}";
-                
-                PreviousPageButton.IsEnabled = _currentPageIndex > 0;
-                NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1;
-                
-                PreviousPageButton.Opacity = PreviousPageButton.IsEnabled ? 1.0 : 0.5;
-                NextPageButton.Opacity = NextPageButton.IsEnabled ? 1.0 : 0.5;
-            }
-            else
-            {
-                PageContentLabel.Text = "";
-                PageInfoLabel.Text = "Page 0 of 0";
-                PreviousPageButton.IsEnabled = false;
-                NextPageButton.IsEnabled = false;
-                PreviousPageButton.Opacity = 0.5;
-                NextPageButton.Opacity = 0.5;
-            }
-        }
-
-        private void OnPreviousPageClicked(object sender, EventArgs e)
-        {
-            if (_currentPageIndex > 0)
-            {
-                _currentPageIndex--;
-                UpdatePageDisplay();
-            }
-        }
-
-        private void OnNextPageClicked(object sender, EventArgs e)
-        {
-            if (_currentPageIndex < _pages.Count - 1)
-            {
-                _currentPageIndex++;
-                UpdatePageDisplay();
-            }
-        }
-
-        private async void OnJumpToPageClicked(object sender, EventArgs e)
-        {
-            if (_pages.Count <= 1) return;
-
-            var pageNumber = await DisplayPromptAsync("Jump to Page", 
-                $"Enter page number (1-{_pages.Count}):", 
-                "Go", "Cancel", 
-                keyboard: Keyboard.Numeric);
-
-            if (int.TryParse(pageNumber, out int targetPage) && targetPage >= 1 && targetPage <= _pages.Count)
-            {
-                _currentPageIndex = targetPage - 1;
-                UpdatePageDisplay();
-            }
-        }
-
-        private async void OnEditPageClicked(object sender, EventArgs e)
-        {
-            if (_isEditingPage) return;
-
-            var currentPageText = _pages.Any() && _currentPageIndex < _pages.Count ? _pages[_currentPageIndex] : "";
-            
-            var editedText = await DisplayPromptAsync("Edit Page", 
-                "Edit current page content:", 
-                initialValue: currentPageText,
-                maxLength: 5000,
-                keyboard: Keyboard.Text);
-            
-            if (editedText != null) // Not cancelled
-            {
-                _pages[_currentPageIndex] = editedText;
-                _fullText = string.Join("\n\n", _pages);
-                UpdatePageDisplay();
-                SetEditorState(true); // Show save button
-            }
-        }
-
-        void SetEditorState(bool isEditing)
-        {
-            _isEditingPage = isEditing;
-            SaveButton.IsVisible = isEditing;
-            EditButton.IsVisible = !isEditing;
-            EditPageButton.IsVisible = !isEditing && _pages.Any();
-        }
-
-        private void SetSavedVoiceLocale()
-        {
-            if (CurrentDocument?.VoiceLocale != null && systemLocales.Any())
-            {
-                // Match using language-country-name string for consistency
-                var savedLocale = systemLocales.FirstOrDefault(l =>
-                    $"{l.Language}-{l.Country}-{l.Name}" == CurrentDocument.VoiceLocale);
-
-                if (savedLocale != null)
-                {
-                    var index = filteredLocales.FindIndex(l =>
-                        $"{l.Language}-{l.Country}-{l.Name}" == CurrentDocument.VoiceLocale);
-
-                    if (index >= 0)
-                    {
-                        VoicePicker.SelectedIndex = index;
-                        selectedLocale = filteredLocales[index];
-                    }
-                    else
-                    {
-                        // If not found in filteredLocales, reset selection to savedLocale
-                        selectedLocale = savedLocale;
-                    }
-                }
-            }
-        }
-
-        private void OnVoicePickerFocused(object sender, FocusEventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(pendingSearchText))
-            {
-                filteredLocales = systemLocales
-                    .OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})")
-                    .ToList();
-                VoicePicker.ItemsSource = filteredLocales
-                    .Select(l => $"{l.Language} - {l.Name} ({l.Country})")
-                    .ToList();
-            }
-        }
-
-        private void OnVoiceChanged(object sender, EventArgs e)
-        {
-            var picker = sender as Picker;
-            if (picker.SelectedIndex >= 0)
-            {
-                selectedLocale = filteredLocales[picker.SelectedIndex];
-
-                // Fire and forget saving
-                _ = SaveVoiceSelectionAsync();
-            }
-        }
-
-        private async Task SaveVoiceSelectionAsync()
-        {
-            if (CurrentDocument != null)
-            {
-                CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
-                await _db.SaveDocumentAsync(CurrentDocument);
-            }
-        }
-
-        private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e)
-        {
-            pendingSearchText = e.NewTextValue ?? "";
-        }
-
-        private void OnVoiceSearchButtonPressed(object sender, EventArgs e)
-        {
-            var currentSelection = selectedLocale;
-
-            var searchText = pendingSearchText.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(searchText))
-            {
-                filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
-            }
-            else
-            {
-                filteredLocales = systemLocales
-                    .Where(l =>
-                        l.Language.ToLowerInvariant().Contains(searchText) ||
-                        l.Name.ToLowerInvariant().Contains(searchText) ||
-                        l.Country.ToLowerInvariant().Contains(searchText))
-                    .OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})")
-                    .ToList();
-            }
-
-            VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
-
-            // Restore selection if still available after filtering
-            if (currentSelection != null)
-            {
-                var index = filteredLocales.FindIndex(l =>
-                    l.Language == currentSelection.Language &&
-                    l.Country == currentSelection.Country &&
-                    l.Name == currentSelection.Name);
-                if (index >= 0)
-                {
-                    VoicePicker.SelectedIndex = index;
-                }
-            }
-
-            VoicePicker.Focus();
-        }
-
-        private async void OnImportDocumentClicked(object sender, EventArgs e)
-        {
-            var fileResult = await FilePicker.Default.PickAsync(new PickOptions
-            {
-                PickerTitle = "Select a TXT file",
-                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-                {
-                    { DevicePlatform.Android, new[] { "text/plain" } },
-                    { DevicePlatform.iOS, new[] { "public.plain-text" } },
-                    { DevicePlatform.WinUI, new[] { ".txt" } }
-                })
-            });
-
-            if (fileResult != null)
-            {
-                var extension = Path.GetExtension(fileResult.FullPath).ToLowerInvariant();
-                if (extension == ".txt")
-                {
-                    using var stream = await fileResult.OpenReadAsync();
-                    using StreamReader reader = new(stream);
-                    string textContent = await reader.ReadToEndAsync();
-
-                    _fullText = textContent;
-                    await PaginateTextAsync(_fullText);
-                }
-                else
-                {
-                    await DisplayAlert("Invalid File", "Please select a TXT file.", "OK");
-                }
-            }
-        }
-
-        private async void PlayText()
-        {
-            string textToRead;
-            
-            // Read the current page or full text based on user preference
-            var choice = await DisplayActionSheet("Read Text", "Cancel", null, "Current Page Only", "Full Document");
-            
-            if (choice == "Current Page Only")
-            {
-                textToRead = _pages.Any() && _currentPageIndex < _pages.Count ? _pages[_currentPageIndex] : "";
-            }
-            else if (choice == "Full Document")
-            {
-                textToRead = _fullText;
-            }
-            else
-            {
-                return; // Cancelled
-            }
-            
-            if (!string.IsNullOrWhiteSpace(textToRead))
-            {
-                try
-                {
-                    ttsCancel = new CancellationTokenSource();
-                    var options = new SpeechOptions
-                    {
-                        Locale = selectedLocale,
-                        Pitch = 1.0f,
-                        Volume = 1.0f
-                    };
-                    await TextToSpeech.Default.SpeakAsync(textToRead, options, ttsCancel.Token);
-                }
-                catch { /* handle errors if needed */ }
-            }
-        }
-
-        private async void OnPlayClicked(object sender, EventArgs e)
-        {
             ttsCancel?.Cancel();
-            if (isRepeating)
-            {
-                StartRepeatingSpeech();
-            }
-            else
-            {
-                PlayText();
-            }
-        }
-
-        private void OnPauseClicked(object sender, EventArgs e)
-        {
-            ttsCancel?.Cancel();
-        }
-
-        private void OnRepeatClicked(object sender, EventArgs e)
-        {
-            isRepeating = !isRepeating;
-            RepeatButton.BackgroundColor = isRepeating ? Colors.Green : Colors.Red;
-        }
-
-        private async void StartRepeatingSpeech()
-        {
-            string textToRead = _fullText;
-            if (string.IsNullOrWhiteSpace(textToRead))
-                return;
-
             ttsCancel = new CancellationTokenSource();
+            _isPlaying = true;
             try
             {
-                while (isRepeating && !ttsCancel.Token.IsCancellationRequested)
-                {
-                    await TextToSpeech.Default.SpeakAsync(textToRead, cancelToken: ttsCancel.Token);
-                    await Task.Delay(500, ttsCancel.Token);
-                }
+                _currentPageIndex = _lastPhrasePage;
+                UpdatePageDisplay();
+                HighlightPhrase(_lastPhraseIndex);
+                ScrollToPhrase(_lastPhraseIndex);
+                await TextToSpeech.Default.SpeakAsync(phraseList[_lastPhraseIndex].Text, new SpeechOptions { Locale = selectedLocale }, ttsCancel.Token);
+                DimPhrase(_lastPhraseIndex);
             }
-            catch (OperationCanceledException)
-            {
-                // Speech cancelled
-            }
+            catch (OperationCanceledException) { }
+            finally { _isPlaying = false; }
+            return;
         }
+        await PlayFromAsync(_currentPageIndex, 0);
+    }
 
-        private async Task<Flags> SelectFlagAsync()
+    private void OnPauseClicked(object sender, EventArgs e)
+    {
+        if (!_isPlaying) return;
+        _isPaused = true;
+        ttsCancel?.Cancel();
+    }
+
+    private void OnRepeatClicked(object sender, EventArgs e)
+    {
+        if (_completedDocument && !_isPlaying)
         {
-            var flags = await _db.GetAllFlagsAsync();
-            if (!flags.Any())
-            {
-                var createFlag = await DisplayAlert("No Flags",
-                    "No flags exist. Would you like to create one?", "Yes", "No");
-                if (createFlag)
-                {
-                    await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
-                    return null;
-                }
-                return null;
-            }
-
-            var flagNames = flags.Select(f => f.Name).ToArray();
-            var selectedFlagName = await DisplayActionSheet("Select Flag", "Cancel", null, flagNames);
-            if (string.IsNullOrWhiteSpace(selectedFlagName) || selectedFlagName == "Cancel")
-                return null;
-            return flags.FirstOrDefault(f => f.Name == selectedFlagName);
-        }
-
-        private async void OnEditDocumentClicked(object sender, EventArgs e)
-        {
-            var editText = await DisplayPromptAsync("Edit Document", 
-                "Edit full document content:", 
-                initialValue: _fullText,
-                maxLength: 50000,
-                keyboard: Keyboard.Text);
-            
-            if (editText != null) // Not cancelled
-            {
-                _fullText = editText;
-                await PaginateTextAsync(_fullText);
-                SetEditorState(true);
-            }
-        }
-
-        private async void OnSaveDocumentClicked(object sender, EventArgs e)
-        {
-            // Create temp document if new and null
-            if (isNewDocument && CurrentDocument == null)
-            {
-                CurrentDocument = new ImportedDocument
-                {
-                    Name = "Untitled",
-                    Content = _fullText,
-                    ImportedDate = DateTime.Now
-                };
-            }
-
-            // Show error if no doc and not new doc
-            if (CurrentDocument == null && !isNewDocument)
-            {
-                await DisplayAlert("Error", "No document loaded.", "OK");
-                return;
-            }
-
-            string action;
-            if (isNewDocument)
-            {
-                action = await DisplayActionSheet("Save Document", "Cancel", null, "Save");
-                if (action == "Save")
-                    action = "Create New"; // Treat as new internally
-            }
-            else
-            {
-                action = await DisplayActionSheet("Save Document", "Cancel", null, "Override Existing", "Create New");
-            }
-
-            if (action == "Override Existing" && !isNewDocument && CurrentDocument != null)
-            {
-                CurrentDocument.Content = _fullText;
-                if (selectedLocale != null)
-                    CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
-                await _db.SaveDocumentAsync(CurrentDocument);
-                await DisplayAlert("Saved", "Changes saved to the existing document.", "OK");
-                SetEditorState(false);
-            }
-            else if (action == "Create New" || isNewDocument)
-            {
-                var newName = await DisplayPromptAsync("New Document", "Enter document name:", CurrentDocument?.Name.Replace("Untitled", "New Document"));
-                if (string.IsNullOrWhiteSpace(newName))
-                    return;
-
-                Flags selectedFlag = null;
-                bool addFlag = await DisplayAlert("Add Flag", "Add a flag to this document?", "Yes", "No");
-                if (addFlag)
-                    selectedFlag = await SelectFlagAsync();
-
-                var newDoc = new ImportedDocument
-                {
-                    Name = newName,
-                    Content = _fullText,
-                    ImportedDate = DateTime.Now,
-                    Flag = selectedFlag,
-                    FlagId = selectedFlag?.ID,
-                    VoiceLocale = selectedLocale != null ? $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}" : null
-                };
-                await _db.SaveDocumentAsync(newDoc);
-                CurrentDocument = newDoc;
-                isNewDocument = false;
-                await DisplayAlert("Saved", "New document saved.", "OK");
-                SetEditorState(false);
-            }
-            else
-            {
-                if (isNewDocument)
-                {
-                    CurrentDocument = null;
-                    await DisplayAlert("Discarded", "Document creation cancelled.", "OK");
-                    await Shell.Current.GoToAsync("..");
-                }
-            }
+            OnPlayClicked(sender, e);
         }
     }
 }

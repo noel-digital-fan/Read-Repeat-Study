@@ -5,17 +5,13 @@
              BackgroundColor="White">
 
     <Grid RowSpacing="0" Padding="16">
-        <!-- Define full layout: Top (controls), Middle (editor), Bottom (playback) -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <!-- Top Controls -->
             <RowDefinition Height="*" />
-            <!-- Editor (fills space) -->
             <RowDefinition Height="Auto" />
-            <!-- Playback Controls -->
         </Grid.RowDefinitions>
 
-        <!-- Top Controls: Voice Search + Picker + Edit/Save on same row -->
+        <!-- Top Controls -->
         <Grid Grid.Row="0" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2*" />
@@ -23,172 +19,48 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <SearchBar x:Name="VoiceSearchBar"
-                       Placeholder="Search voices..."
-                       TextChanged="OnVoiceSearchTextChanged"
-                       SearchButtonPressed="OnVoiceSearchButtonPressed"
-                       Grid.Column="0" />
-
-            <Picker x:Name="VoicePicker"
-                    Title="Select Voice"
-                    SelectedIndexChanged="OnVoiceChanged"
-                    Focused="OnVoicePickerFocused"
-                    Grid.Column="1" />
-
-            <Button x:Name="EditButton"
-                    Text="Edit"
-                    BackgroundColor="#03DAC5"
-                    TextColor="Black"
-                    FontSize="14"
-                    CornerRadius="6"
-                    HeightRequest="40"
-                    Margin="0,0,0,0"
-                    IsVisible="True"
-                    Clicked="OnEditDocumentClicked"
-                    Grid.Column="2" />
-
-            <Button x:Name="SaveButton"
-                    Text="Save"
-                    BackgroundColor="#018786"
-                    TextColor="White"
-                    FontSize="14"
-                    CornerRadius="6"
-                    HeightRequest="40"
-                    Margin="0,0,0,0"
-                    IsVisible="False"
-                    Clicked="OnSaveDocumentClicked"
-                    Grid.Column="3" />
+            <SearchBar x:Name="VoiceSearchBar" Placeholder="Search voices..."
+                       TextChanged="OnVoiceSearchTextChanged" SearchButtonPressed="OnVoiceSearchButtonPressed" Grid.Column="0" />
+            <Picker x:Name="VoicePicker" Title="Select Voice" SelectedIndexChanged="OnVoiceChanged" Focused="OnVoicePickerFocused" Grid.Column="1" />
+            <Button x:Name="EditButton" Text="Edit" BackgroundColor="#03DAC5" TextColor="Black" FontSize="14" CornerRadius="6" HeightRequest="40" Clicked="OnEditDocumentClicked" Grid.Column="2" />
+            <Button x:Name="SaveButton" Text="Save" BackgroundColor="#018786" TextColor="White" FontSize="14" CornerRadius="6" HeightRequest="40" IsVisible="False" Clicked="OnSaveDocumentClicked" Grid.Column="3" />
         </Grid>
 
-        <!-- Center Paginated Text Viewer -->
-        <Frame Grid.Row="1"
-               BorderColor="Gray"
-               CornerRadius="8"
-               HasShadow="False"
-               BackgroundColor="White"
-               Margin="0,12,0,12"
-               VerticalOptions="FillAndExpand">
-
+        <!-- Reader Area -->
+        <Frame Grid.Row="1" BorderColor="Gray" CornerRadius="8" HasShadow="False" BackgroundColor="White" Margin="0,12,0,12" VerticalOptions="Fill">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Text Content Area - NO SCROLLVIEW, just a container -->
-                <Grid x:Name="PageContainer" 
-                      Grid.Row="0"
-                      BackgroundColor="White">
-                    <Label x:Name="PageContentLabel"
-                           Text=""
-                           FontSize="15"
-                           TextColor="Black"
-                           LineBreakMode="WordWrap"
-                           VerticalOptions="Start"
-                           HorizontalOptions="Fill"
-                           Padding="16"
-                           BackgroundColor="Transparent" />
-                </Grid>
+                <!-- Scrollable phrases (read mode) -->
+                <ScrollView x:Name="PhraseScrollView" Grid.Row="0" IsVisible="True" Padding="0">
+                    <VerticalStackLayout x:Name="PhraseStack" Spacing="4" Padding="16,8,16,16" />
+                </ScrollView>
 
-                <!-- Page Navigation Controls -->
-                <Grid Grid.Row="1" 
-                      ColumnSpacing="10" 
-                      Padding="10"
-                      BackgroundColor="#F5F5F5">
+                <!-- Single editor for edit mode -->
+                <Editor x:Name="PageContentEditor" Grid.Row="0" Text="" FontSize="15" TextColor="Black" AutoSize="TextChanges" IsVisible="False" BackgroundColor="White" Margin="16,8,16,16" />
+
+                <!-- Navigation -->
+                <Grid Grid.Row="1" ColumnSpacing="10" Padding="10" BackgroundColor="#F5F5F5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-
-                    <Button x:Name="PreviousPageButton"
-                            Text="◀"
-                            WidthRequest="40"
-                            HeightRequest="35"
-                            FontSize="16"
-                            BackgroundColor="#6200EE"
-                            TextColor="White"
-                            CornerRadius="5"
-                            Clicked="OnPreviousPageClicked"
-                            Grid.Column="0" />
-
-                    <Label x:Name="PageInfoLabel"
-                           Text="Page 1 of 1"
-                           FontSize="14"
-                           TextColor="Black"
-                           VerticalOptions="Center"
-                           HorizontalOptions="Center"
-                           Grid.Column="1" />
-
-                    <Button x:Name="NextPageButton"
-                            Text="▶"
-                            WidthRequest="40"
-                            HeightRequest="35"
-                            FontSize="16"
-                            BackgroundColor="#6200EE"
-                            TextColor="White"
-                            CornerRadius="5"
-                            Clicked="OnNextPageClicked"
-                            Grid.Column="2" />
-
-                    <Button x:Name="EditPageButton"
-                            Text="✏️"
-                            WidthRequest="40"
-                            HeightRequest="35"
-                            FontSize="14"
-                            BackgroundColor="#03DAC5"
-                            TextColor="Black"
-                            CornerRadius="5"
-                            Clicked="OnEditPageClicked"
-                            IsVisible="False"
-                            Grid.Column="3" />
-
-                    <Button x:Name="JumpToPageButton"
-                            Text="⚑"
-                            WidthRequest="40"
-                            HeightRequest="35"
-                            FontSize="16"
-                            BackgroundColor="#FF6B35"
-                            TextColor="White"
-                            CornerRadius="5"
-                            Clicked="OnJumpToPageClicked"
-                            Grid.Column="4" />
+                    <Button x:Name="PreviousPageButton" Text="◀" WidthRequest="40" HeightRequest="35" FontSize="16" BackgroundColor="#6200EE" TextColor="White" CornerRadius="5" Clicked="OnPreviousPageClicked" Grid.Column="0" />
+                    <Label x:Name="PageInfoLabel" Text="Page 1 of 1" FontSize="14" TextColor="Black" VerticalOptions="Center" HorizontalOptions="Center" Grid.Column="1" />
+                    <Button x:Name="NextPageButton" Text="▶" WidthRequest="40" HeightRequest="35" FontSize="16" BackgroundColor="#6200EE" TextColor="White" CornerRadius="5" Clicked="OnNextPageClicked" Grid.Column="2" />
                 </Grid>
             </Grid>
         </Frame>
 
-        <!-- Bottom Playback Controls -->
-        <HorizontalStackLayout Grid.Row="2"
-                               Spacing="20"
-                               HorizontalOptions="Center"
-                               Padding="0,12,0,12">
-            <Button Text="Play"
-                    WidthRequest="80"
-                    HeightRequest="40"
-                    BackgroundColor="#6200EE"
-                    TextColor="White"
-                    CornerRadius="8"
-                    Clicked="OnPlayClicked" />
-
-            <Button Text="Pause"
-                    WidthRequest="80"
-                    HeightRequest="40"
-                    BackgroundColor="#6200EE"
-                    TextColor="White"
-                    CornerRadius="8"
-                    Clicked="OnPauseClicked" />
-
-            <Button x:Name="RepeatButton"
-                    Text="Repeat"
-                    WidthRequest="80"
-                    HeightRequest="40"
-                    BackgroundColor="#6200EE"
-                    TextColor="White"
-                    CornerRadius="8"
-                    Clicked="OnRepeatClicked" />
+        <!-- Playback Controls -->
+        <HorizontalStackLayout Grid.Row="2" Spacing="20" HorizontalOptions="Center" Padding="0,12,0,12">
+            <Button Text="Play" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPlayClicked" />
+            <Button Text="Pause" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPauseClicked" />
+            <Button x:Name="RepeatButton" Text="Repeat" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnRepeatClicked" />
         </HorizontalStackLayout>
     </Grid>
 </ContentPage>
