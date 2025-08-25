@@ -99,11 +99,6 @@ namespace Read_Repeat_Study
         {
             base.OnAppearing();
 
-            if (isNewDocument)
-                SetEditorState(true);  // Make sure save button is visible on appearing new docs
-            else
-                SetEditorState(false);
-
             // Load system locales and bind picker
             systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
             filteredLocales = systemLocales.OrderBy(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
@@ -143,21 +138,12 @@ namespace Read_Repeat_Study
 
         private async Task SaveVoiceSelectionAsync()
         {
-            // Only save voice selection if this is NOT a new document
-            // or if it's a new document that has already been saved once
-            if (CurrentDocument != null && !isNewDocument)
+            if (CurrentDocument != null)
             {
                 CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
                 await _db.SaveDocumentAsync(CurrentDocument);
             }
-            // For new documents, just update the in-memory object without saving to DB
-            else if (CurrentDocument != null && isNewDocument)
-            {
-                CurrentDocument.VoiceLocale = $"{selectedLocale.Language}-{selectedLocale.Country}-{selectedLocale.Name}";
-                // Don't save to database yet - wait for user to explicitly save
-            }
         }
-
 
 
 
@@ -203,6 +189,38 @@ namespace Read_Repeat_Study
 
             VoicePicker.Focus();
         }
+
+        private async void OnImportDocumentClicked(object sender, EventArgs e)
+        {
+            var fileResult = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select a TXT file",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.Android, new[] { "text/plain" } },
+                    { DevicePlatform.iOS, new[] { "public.plain-text" } },
+                    { DevicePlatform.WinUI, new[] { ".txt" } }
+                })
+            });
+
+            if (fileResult != null)
+            {
+                var extension = Path.GetExtension(fileResult.FullPath).ToLowerInvariant();
+                if (extension == ".txt")
+                {
+                    using var stream = await fileResult.OpenReadAsync();
+                    using StreamReader reader = new(stream);
+                    string textContent = await reader.ReadToEndAsync();
+
+                    TxtContentEditor.Text = textContent;
+                }
+                else
+                {
+                    await DisplayAlert("Invalid File", "Please select a TXT file.", "OK");
+                }
+            }
+        }
+
         private async void PlayText()
         {
             string textToRead = TxtContentEditor.Text;
@@ -299,6 +317,17 @@ namespace Read_Repeat_Study
 
         private async void OnSaveDocumentClicked(object sender, EventArgs e)
         {
+            // Create temp document if new and null
+            if (isNewDocument && CurrentDocument == null)
+            {
+                CurrentDocument = new ImportedDocument
+                {
+                    Name = "Untitled",
+                    Content = TxtContentEditor.Text,
+                    ImportedDate = DateTime.Now
+                };
+            }
+
             // Show error if no doc and not new doc
             if (CurrentDocument == null && !isNewDocument)
             {
