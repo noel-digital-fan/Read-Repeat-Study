@@ -61,7 +61,7 @@
                     Grid.Column="3" />
         </Grid>
 
-        <!-- Center Editor -->
+        <!-- Center Paginated Text Viewer -->
         <Frame Grid.Row="1"
                BorderColor="Gray"
                CornerRadius="8"
@@ -69,14 +69,95 @@
                BackgroundColor="White"
                Margin="0,12,0,12"
                VerticalOptions="FillAndExpand">
-            <Editor x:Name="TxtContentEditor"
-                    IsReadOnly="True"
-                    Placeholder="File content will appear here..."
-                    BackgroundColor="White"
-                    TextColor="Black"
-                    FontSize="18"
-                    VerticalOptions="FillAndExpand"
-                    HorizontalOptions="Fill" />
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Text Content Area - NO SCROLLVIEW, just a container -->
+                <Grid x:Name="PageContainer" 
+                      Grid.Row="0"
+                      BackgroundColor="White">
+                    <Label x:Name="PageContentLabel"
+                           Text=""
+                           FontSize="15"
+                           TextColor="Black"
+                           LineBreakMode="WordWrap"
+                           VerticalOptions="Start"
+                           HorizontalOptions="Fill"
+                           Padding="16"
+                           BackgroundColor="Transparent" />
+                </Grid>
+
+                <!-- Page Navigation Controls -->
+                <Grid Grid.Row="1" 
+                      ColumnSpacing="10" 
+                      Padding="10"
+                      BackgroundColor="#F5F5F5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="PreviousPageButton"
+                            Text="◀"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="16"
+                            BackgroundColor="#6200EE"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnPreviousPageClicked"
+                            Grid.Column="0" />
+
+                    <Label x:Name="PageInfoLabel"
+                           Text="Page 1 of 1"
+                           FontSize="14"
+                           TextColor="Black"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center"
+                           Grid.Column="1" />
+
+                    <Button x:Name="NextPageButton"
+                            Text="▶"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="16"
+                            BackgroundColor="#6200EE"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnNextPageClicked"
+                            Grid.Column="2" />
+
+                    <Button x:Name="EditPageButton"
+                            Text="✏️"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="14"
+                            BackgroundColor="#03DAC5"
+                            TextColor="Black"
+                            CornerRadius="5"
+                            Clicked="OnEditPageClicked"
+                            IsVisible="False"
+                            Grid.Column="3" />
+
+                    <Button x:Name="JumpToPageButton"
+                            Text="⚑"
+                            WidthRequest="40"
+                            HeightRequest="35"
+                            FontSize="16"
+                            BackgroundColor="#FF6B35"
+                            TextColor="White"
+                            CornerRadius="5"
+                            Clicked="OnJumpToPageClicked"
+                            Grid.Column="4" />
+                </Grid>
+            </Grid>
         </Frame>
 
         <!-- Bottom Playback Controls -->
