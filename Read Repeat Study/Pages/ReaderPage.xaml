@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Read_Repeat_Study.ReaderPage"
-             BackgroundColor="White">
+             BackgroundColor="{AppThemeBinding Light=White, Dark={StaticResource OffBlack}}">
 
     <Grid RowSpacing="0" Padding="16">
         <Grid.RowDefinitions>
@@ -19,15 +19,47 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <SearchBar x:Name="VoiceSearchBar" Placeholder="Search voices..."
-                       TextChanged="OnVoiceSearchTextChanged" SearchButtonPressed="OnVoiceSearchButtonPressed" Grid.Column="0" />
-            <Picker x:Name="VoicePicker" Title="Select Voice" SelectedIndexChanged="OnVoiceChanged" Focused="OnVoicePickerFocused" Grid.Column="1" />
-            <Button x:Name="EditButton" Text="Edit" BackgroundColor="#03DAC5" TextColor="Black" FontSize="14" CornerRadius="6" HeightRequest="40" Clicked="OnEditDocumentClicked" Grid.Column="2" />
-            <Button x:Name="SaveButton" Text="Save" BackgroundColor="#018786" TextColor="White" FontSize="14" CornerRadius="6" HeightRequest="40" IsVisible="False" Clicked="OnSaveDocumentClicked" Grid.Column="3" />
+            <SearchBar x:Name="VoiceSearchBar" 
+                       Placeholder="Search voices..."
+                       TextChanged="OnVoiceSearchTextChanged" 
+                       SearchButtonPressed="OnVoiceSearchButtonPressed" 
+                       Grid.Column="0" />
+            <Picker x:Name="VoicePicker" 
+                    Title="Select Voice" 
+                    SelectedIndexChanged="OnVoiceChanged" 
+                    Focused="OnVoicePickerFocused" 
+                    Grid.Column="1" />
+            <Button x:Name="EditButton" 
+                    Text="Edit" 
+                    BackgroundColor="#60a5fa" 
+                    TextColor="White" 
+                    FontSize="14" 
+                    CornerRadius="6" 
+                    HeightRequest="40" 
+                    Clicked="OnEditDocumentClicked" 
+                    Grid.Column="2" />
+            <Button x:Name="SaveButton" 
+                    Text="Save" 
+                    BackgroundColor="{StaticResource Primary}" 
+                    TextColor="White" 
+                    FontSize="14" 
+                    CornerRadius="6" 
+                    HeightRequest="40" 
+                    IsVisible="False" 
+                    Clicked="OnSaveDocumentClicked" 
+                    Grid.Column="3" />
         </Grid>
 
         <!-- Reader Area -->
-        <Frame Grid.Row="1" BorderColor="Gray" CornerRadius="8" HasShadow="False" BackgroundColor="White" Margin="0,12,0,12" VerticalOptions="Fill">
+        <Border Grid.Row="1" 
+                Stroke="{AppThemeBinding Light=Gray, Dark={StaticResource Gray600}}" 
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=White, Dark={StaticResource Gray950}}" 
+                Margin="0,12,0,12" 
+                VerticalOptions="Fill">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
@@ -35,15 +67,31 @@
                 </Grid.RowDefinitions>
 
                 <!-- Scrollable phrases (read mode) -->
-                <ScrollView x:Name="PhraseScrollView" Grid.Row="0" IsVisible="True" Padding="0">
-                    <VerticalStackLayout x:Name="PhraseStack" Spacing="4" Padding="16,8,16,16" />
+                <ScrollView x:Name="PhraseScrollView" 
+                            Grid.Row="0" 
+                            IsVisible="True" 
+                            Padding="0">
+                    <VerticalStackLayout x:Name="PhraseStack" 
+                                       Spacing="4" 
+                                       Padding="16,8,16,16" />
                 </ScrollView>
 
                 <!-- Single editor for edit mode -->
-                <Editor x:Name="PageContentEditor" Grid.Row="0" Text="" FontSize="15" TextColor="Black" AutoSize="TextChanges" IsVisible="False" BackgroundColor="White" Margin="16,8,16,16" />
+                <Editor x:Name="PageContentEditor" 
+                        Grid.Row="0" 
+                        Text="" 
+                        FontSize="15" 
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}" 
+                        AutoSize="TextChanges" 
+                        IsVisible="False" 
+                        BackgroundColor="Transparent" 
+                        Margin="16,8,16,16" />
 
                 <!-- Navigation -->
-                <Grid Grid.Row="1" ColumnSpacing="10" Padding="10" BackgroundColor="#F5F5F5">
+                <Grid Grid.Row="1" 
+                      ColumnSpacing="10" 
+                      Padding="10" 
+                      BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark={StaticResource Gray800}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -51,11 +99,11 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button x:Name="PreviousPageButton"
-                            Text="◀"
+                            Text="?"
                             WidthRequest="40"
                             HeightRequest="35"
                             FontSize="16"
-                            BackgroundColor="#6200EE"
+                            BackgroundColor="{StaticResource Primary}"
                             TextColor="White"
                             CornerRadius="5"
                             Clicked="OnPreviousPageClicked"
@@ -63,25 +111,24 @@
                     <Label x:Name="PageInfoLabel"
                            Text="Page 1 of 1"
                            FontSize="14"
-                           TextColor="Black"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
                            VerticalOptions="Center"
                            HorizontalOptions="Center"
                            Grid.Column="1" />
                     <Button x:Name="NextPageButton"
-                            Text="▶"
+                            Text="?"
                             WidthRequest="40"
                             HeightRequest="35"
                             FontSize="16"
-                            BackgroundColor="#6200EE"
+                            BackgroundColor="{StaticResource Primary}"
                             TextColor="White"
                             CornerRadius="5"
                             Clicked="OnNextPageClicked"
                             Grid.Column="2" />
                     <Button x:Name="JumpPageButton"
-                            WidthRequest="40"
-                            HeightRequest="40"
-                            BackgroundColor="#FF6B35"
-                            Padding="1"
+                            WidthRequest="60"
+                            HeightRequest="35"
+                            BackgroundColor="#fb923c"
                             TextColor="White"
                             CornerRadius="5"
                             Clicked="OnJumpToPageClicked"
@@ -89,21 +136,40 @@
                             ImageSource="jump_page.png" />
                 </Grid>
             </Grid>
-        </Frame>
+        </Border>
 
         <!-- Playback Controls -->
-        <HorizontalStackLayout Grid.Row="2" Spacing="20" HorizontalOptions="Center" Padding="0,12,0,12">
-            <Button WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPlayClicked">
+        <HorizontalStackLayout Grid.Row="2" 
+                             Spacing="20" 
+                             HorizontalOptions="Center" 
+                             Padding="0,12,0,12">
+            <Button WidthRequest="80" 
+                    HeightRequest="40" 
+                    BackgroundColor="{StaticResource Primary}" 
+                    TextColor="White" 
+                    CornerRadius="8" 
+                    Clicked="OnPlayClicked">
                 <Button.ImageSource>
                     <FileImageSource File="play.png" />
                 </Button.ImageSource>
             </Button>
-            <Button WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnPauseClicked">
+            <Button WidthRequest="80" 
+                    HeightRequest="40" 
+                    BackgroundColor="{StaticResource Primary}" 
+                    TextColor="White" 
+                    CornerRadius="8" 
+                    Clicked="OnPauseClicked">
                 <Button.ImageSource>
                     <FileImageSource File="pause.png" />
                 </Button.ImageSource>
             </Button>
-            <Button x:Name="RepeatButton" WidthRequest="80" HeightRequest="40" BackgroundColor="#6200EE" TextColor="White" CornerRadius="8" Clicked="OnRepeatClicked">
+            <Button x:Name="RepeatButton" 
+                    WidthRequest="80" 
+                    HeightRequest="40" 
+                    BackgroundColor="{StaticResource Primary}" 
+                    TextColor="White" 
+                    CornerRadius="8" 
+                    Clicked="OnRepeatClicked">
                 <Button.ImageSource>
                     <FileImageSource File="repeat.png" />
                 </Button.ImageSource>

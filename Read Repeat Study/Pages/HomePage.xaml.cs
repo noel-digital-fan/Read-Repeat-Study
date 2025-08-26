@@ -17,6 +17,11 @@ namespace Read_Repeat_Study.Pages
 
         private bool _selectionModeTriggeredByLongPress = false;
 
+        // Cooldown tracking for theme toggle
+        private DateTime _lastThemeToggle = DateTime.MinValue;
+        private bool _isProcessingThemeToggle = false; // prevents recursion when reverting switch
+        private bool _currentIsLight = true; // tracks accepted theme state
+
         public HomePage(DatabaseService db)
         {
             InitializeComponent();
@@ -25,6 +30,66 @@ namespace Read_Repeat_Study.Pages
             DocumentLongPressedCommand = new Command<ImportedDocument>(OnDocumentLongPressed);
             BindingContext = this;
             DocumentsCollection.ItemsSource = Documents;
+
+            InitializeThemeSwitch();
+        }
+
+        private void InitializeThemeSwitch()
+        {
+            var currentTheme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+            _currentIsLight = currentTheme == AppTheme.Light;
+            ThemeSwitch.IsToggled = _currentIsLight; // initial without triggering extra work
+            DarkDayModeImageSwitch.Source = _currentIsLight ? "daymode.png" : "darkmode.png";
+            UpdateThemeContainer(_currentIsLight);
+        }
+
+        private void UpdateThemeContainer(bool isLightMode)
+        {
+            if (isLightMode)
+            {
+                ThemeToggleFrame.BackgroundColor = Color.FromArgb("#F3F4F6");
+                ThemeToggleFrame.BorderColor = Color.FromArgb("#D1D5DB");
+            }
+            else
+            {
+                ThemeToggleFrame.BackgroundColor = Color.FromArgb("#1F2937");
+                ThemeToggleFrame.BorderColor = Color.FromArgb("#374151");
+            }
+        }
+
+        private void OnThemeToggled(object sender, ToggledEventArgs e)
+        {
+            if (_isProcessingThemeToggle) return; // ignore internal changes
+
+            bool requestedIsLight = e.Value;
+            var now = DateTime.UtcNow;
+
+            // Enforce 2s cooldown
+            if (now - _lastThemeToggle < TimeSpan.FromSeconds(2))
+            {
+                // Revert visual switch to previously accepted state silently
+                _isProcessingThemeToggle = true;
+                ThemeSwitch.IsToggled = _currentIsLight;
+                _isProcessingThemeToggle = false;
+                return; // ignore rapid toggle
+            }
+
+            // Accept new state
+            _lastThemeToggle = now;
+            _currentIsLight = requestedIsLight;
+
+            DarkDayModeImageSwitch.Source = requestedIsLight ? "daymode.png" : "darkmode.png";
+            DarkDayModeImageSwitch.Opacity = 0.85;
+            Application.Current.UserAppTheme = requestedIsLight ? AppTheme.Light : AppTheme.Dark;
+            Preferences.Set("app_theme", Application.Current.UserAppTheme.ToString());
+            UpdateThemeContainer(requestedIsLight);
+
+            Device.BeginInvokeOnMainThread(async () =>
+            {
+                await Task.Delay(100);
+                await LoadDocumentsAsync();
+                UpdateFlagColors();
+            });
         }
 
         async Task<string> ExtractTextFromPdfAsync(FileResult file)
@@ -32,12 +97,8 @@ namespace Read_Repeat_Study.Pages
             using var stream = await file.OpenReadAsync();
             using var pdf = PdfDocument.Open(stream);
             var textBuilder = new StringBuilder();
-
             foreach (UglyToad.PdfPig.Content.Page page in pdf.GetPages())
-            {
                 textBuilder.AppendLine(page.Text);
-            }
-
             return textBuilder.ToString();
         }
 
@@ -76,7 +137,6 @@ namespace Read_Repeat_Study.Pages
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
-
             selectedDocuments.Clear();
             HideActionButtons();
             UpdateEditButtonVisibility();
@@ -85,24 +145,19 @@ namespace Read_Repeat_Study.Pages
 
         private void OnBlockerTapped(object sender, EventArgs e)
         {
-            HideSelectionBar();        // Clear selection and hide toolbar
-            InputBlocker.IsVisible = false; // Hide the input blocker overlay
+            HideSelectionBar();
+            InputBlocker.IsVisible = false;
         }
-
-
-
 
         void OnDocumentLongPressed(ImportedDocument doc)
         {
             if (!ActionButtonsContainer.IsVisible)
                 ShowActionButtons();
-
             if (!doc.IsSelected)
             {
                 doc.IsSelected = true;
                 selectedDocuments.Add(doc);
             }
-
             _selectionModeTriggeredByLongPress = true;
             UpdateEditButtonVisibility();
         }
@@ -110,20 +165,12 @@ namespace Read_Repeat_Study.Pages
         private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             foreach (var doc in Documents)
-            {
                 doc.IsSelected = false;
-            }
             foreach (var doc in e.CurrentSelection.Cast<ImportedDocument>())
-            {
                 doc.IsSelected = true;
-            }
-
             selectedDocuments.Clear();
             foreach (var doc in e.CurrentSelection.Cast<ImportedDocument>())
-            {
                 selectedDocuments.Add(doc);
-            }
-
             TakeActionsButton.IsVisible = selectedDocuments.Any();
             UpdateEditButtonVisibility();
         }
@@ -132,7 +179,6 @@ namespace Read_Repeat_Study.Pages
         {
             var doc = (sender as VisualElement)?.BindingContext as ImportedDocument;
             if (doc == null) return;
-
             if (ActionButtonsContainer.IsVisible)
             {
                 if (_selectionModeTriggeredByLongPress)
@@ -140,18 +186,15 @@ namespace Read_Repeat_Study.Pages
                     _selectionModeTriggeredByLongPress = false;
                     return;
                 }
-
                 doc.IsSelected = !doc.IsSelected;
-
                 if (doc.IsSelected && !selectedDocuments.Contains(doc))
                     selectedDocuments.Add(doc);
                 else if (!doc.IsSelected && selectedDocuments.Contains(doc))
                     selectedDocuments.Remove(doc);
-
                 if (!selectedDocuments.Any())
                     HideActionButtons();
                 else
-                    UpdateEditButtonVisibility(); // <-- Ensure visibility is updated after tap
+                    UpdateEditButtonVisibility();
             }
             else
             {
@@ -164,7 +207,6 @@ namespace Read_Repeat_Study.Pages
         {
             var action = await DisplayActionSheet("Take Actions", "Cancel", null,
                 "Add/Change Flag", "Remove Flag", "Delete");
-
             switch (action)
             {
                 case "Add/Change Flag":
@@ -177,7 +219,6 @@ namespace Read_Repeat_Study.Pages
                     await BulkDeleteAsync();
                     break;
             }
-
             // After action, clear selection
             OnCancelSelectionClicked(this, EventArgs.Empty);
         }
@@ -186,7 +227,6 @@ namespace Read_Repeat_Study.Pages
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
-
             selectedDocuments.Clear();
             HideActionButtons();
             UpdateEditButtonVisibility();
@@ -260,7 +300,6 @@ namespace Read_Repeat_Study.Pages
                 await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
                 return null;
             }
-
             var names = flags.Select(f => f.Name).ToArray();
             var choice = await DisplayActionSheet("Select Flag", "Cancel", null, names);
             return flags.FirstOrDefault(f => f.Name == choice);
@@ -502,14 +541,7 @@ namespace Read_Repeat_Study.Pages
         // Add this helper method:
         void UpdateEditButtonVisibility()
         {
-            if (selectedDocuments.Count == 1)
-            {
-                EditDocumentButton.IsVisible = true;
-            }
-            else
-            {
-                EditDocumentButton.IsVisible = false;
-            }
+            EditDocumentButton.IsVisible = selectedDocuments.Count == 1;
         }
     }
 }

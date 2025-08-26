@@ -42,10 +42,10 @@
                                   CommandParameter="Yellow" />
                     </BoxView.GestureRecognizers>
                 </BoxView>
-                <BoxView Color="Purple" WidthRequest="32" HeightRequest="32">
+                <BoxView Color="#3f8cff" WidthRequest="32" HeightRequest="32">
                     <BoxView.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
-                                  CommandParameter="Purple" />
+                                  CommandParameter="AppBlue" />
                     </BoxView.GestureRecognizers>
                 </BoxView>
             </HorizontalStackLayout>
@@ -76,7 +76,12 @@
              HorizontalOptions="Center" />
 
         <!-- Save Button -->
-        <Button Text="Save" Clicked="OnSaveClicked" Margin="0,12,0,0" />
+        <Button Text="Save" 
+                BackgroundColor="{StaticResource Primary}"
+                TextColor="White"
+                CornerRadius="8"
+                Clicked="OnSaveClicked" 
+                Margin="0,12,0,0" />
 
     </VerticalStackLayout>
 </ContentPage>

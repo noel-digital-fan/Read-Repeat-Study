@@ -8,10 +8,11 @@
     x:Name="HomePageRoot"
     Title="Home">
 
-    <!-- Add this to your ContentPage resources -->
     <ContentPage.Resources>
         <ResourceDictionary>
             <local:MathConverter x:Key="MathConverter" />
+            <local:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+            <local:BoolToOpacityConverter x:Key="BoolToOpacityConverter" />
         </ResourceDictionary>
     </ContentPage.Resources>
 
@@ -29,17 +30,20 @@
             <HorizontalStackLayout Grid.Row="0" HorizontalOptions="Center" Spacing="12">
                 <Button Text="Import Text Files"
                         Clicked="OnImportFilesClicked"
-                        BackgroundColor="#6200EE"
+                        BackgroundColor="{StaticResource Primary}"
                         TextColor="White"
                         CornerRadius="8"
-                        WidthRequest="200" />
+                        WidthRequest="200"
+                        FontSize="14"
+                        FontAttributes="Bold" />
             </HorizontalStackLayout>
 
             <!-- Documents Header -->
             <Label Grid.Row="1"
-                   Text="Documents"
+                   Text="Your Documents"
                    FontSize="20"
                    FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
                    Margin="0,8,0,0"/>
 
             <!-- Documents Collection -->
@@ -51,16 +55,16 @@
                     <DataTemplate>
                         <Frame Padding="12"
                                Margin="0,4"
-                               BorderColor="LightGray"
+                               BorderColor="{AppThemeBinding Light=LightGray, Dark={StaticResource Gray600}}"
                                CornerRadius="8"
                                HasShadow="False"
-                               BackgroundColor="White"
+                               BackgroundColor="{AppThemeBinding Light=White, Dark={StaticResource Gray950}}"
                                Loaded="OnDocumentFrameLoaded">
                             <Frame.Triggers>
                                 <DataTrigger TargetType="Frame"
                                              Binding="{Binding IsSelected}"
                                              Value="True">
-                                    <Setter Property="BackgroundColor" Value="LightGray" />
+                                    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=LightGray, Dark={StaticResource Gray800}}" />
                                 </DataTrigger>
                             </Frame.Triggers>
                             <Frame.GestureRecognizers>
@@ -81,11 +85,11 @@
                                     <Label Text="{Binding Name}"
                                            FontSize="16"
                                            FontAttributes="Bold"
-                                           TextColor="Black"/>
+                                           TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
                                     <Label Text="{Binding ImportedDate, StringFormat='Imported: {0:MMM dd, yyyy HH:mm}'}"
                                            FontSize="12"
-                                           TextColor="Gray"/>
-                                    <Label FontSize="11" TextColor="#6200EE" FontAttributes="Italic">
+                                           TextColor="{AppThemeBinding Light=Gray, Dark={StaticResource Gray400}}"/>
+                                    <Label FontSize="11" TextColor="{StaticResource Primary}" FontAttributes="Italic">
                                         <Label.Text>
                                             <MultiBinding StringFormat="Currently on page: {0}">
                                                 <Binding Path="LastPageIndex" Converter="{StaticResource MathConverter}" />
@@ -106,7 +110,7 @@
                                        FontSize="13"
                                        VerticalOptions="Center"
                                        HorizontalOptions="Center"
-                                       TextColor="#6200EE"/>
+                                       TextColor="{StaticResource Primary}"/>
                             </Grid>
                             <Frame.Behaviors>
                                 <toolkit:TouchBehavior
@@ -120,39 +124,66 @@
                 </CollectionView.ItemTemplate>
                 <CollectionView.EmptyView>
                     <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
-                        <Label Text="📄" FontSize="48" HorizontalOptions="Center"/>
+                        <Label Text="?" FontSize="48" HorizontalOptions="Center" TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"/>
                         <Label Text="No documents imported yet"
                                FontSize="16"
                                HorizontalOptions="Center"
-                               TextColor="Gray"/>
+                               TextColor="{AppThemeBinding Light=Gray, Dark={StaticResource Gray400}}"/>
                         <Label Text="Tap 'Import Text Files' to get started"
                                FontSize="14"
                                HorizontalOptions="Center"
-                               TextColor="Gray"/>
+                               TextColor="{AppThemeBinding Light=Gray, Dark={StaticResource Gray400}}"/>
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
             </CollectionView>
 
         </Grid>
 
+        <!-- Dynamic Dark Mode Toggle - Top Right -->
+        <Frame x:Name="ThemeToggleFrame"
+               AbsoluteLayout.LayoutBounds="1,0,90,40"
+               AbsoluteLayout.LayoutFlags="PositionProportional"
+               BackgroundColor="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray800}}"
+               BorderColor="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
+               CornerRadius="20"
+               Padding="6,4"
+               HasShadow="False"
+               Margin="8,8,8,0">
+            <HorizontalStackLayout x:Name="ThemeToggleLayout" Spacing="4" VerticalOptions="Center" HorizontalOptions="Center">
+                <Image x:Name="DarkDayModeImageSwitch"
+                       Source="darkmode.png"
+                       WidthRequest="16"
+                       HeightRequest="16"
+                       VerticalOptions="Center"
+                       Opacity="0.6" />
+                <Switch x:Name="ThemeSwitch" 
+                        Toggled="OnThemeToggled"
+                        OnColor="{StaticResource Primary}"
+                        ThumbColor="White"
+                        VerticalOptions="Center"
+                        Scale="0.7" />
+            </HorizontalStackLayout>
+        </Frame>
+
         <!-- Floating Create Document Button -->
-        <Button AbsoluteLayout.LayoutBounds="1,1,70,70"
+        <Button AbsoluteLayout.LayoutBounds="1,1,60,60"
                 AbsoluteLayout.LayoutFlags="PositionProportional"
-                Text="＋"
-                BackgroundColor="#2E7D32"
+                Text="+"
+                BackgroundColor="{StaticResource Primary}"
                 TextColor="White"
-                FontSize="32"
-                CornerRadius="35"
+                FontSize="28"
+                FontAttributes="Bold"
+                CornerRadius="30"
                 Padding="0"
+                Margin="0,0,16,80"
                 Clicked="OnCreateDocumentClicked" />
 
-        <BoxView
-    x:Name="InputBlocker"
-    AbsoluteLayout.LayoutBounds="0,1,1,0.1"
-    AbsoluteLayout.LayoutFlags="All"
-    InputTransparent="False"
-    IsVisible="False"
-            BackgroundColor="Transparent">
+        <BoxView x:Name="InputBlocker"
+                 AbsoluteLayout.LayoutBounds="0,1,1,0.1"
+                 AbsoluteLayout.LayoutFlags="All"
+                 InputTransparent="False"
+                 IsVisible="False"
+                 BackgroundColor="Transparent">
             <BoxView.GestureRecognizers>
                 <TapGestureRecognizer Tapped="OnBlockerTapped" />
             </BoxView.GestureRecognizers>
@@ -166,6 +197,7 @@
               ColumnSpacing="12"
               InputTransparent="False"
               ColumnDefinitions="*,auto,auto,auto"
+              BackgroundColor="{AppThemeBinding Light=White, Dark={StaticResource OffBlack}}"
               IsVisible="False">
 
             <Button x:Name="EditDocumentButton"
@@ -178,7 +210,7 @@
                     Grid.Column="1"
                     Text="Select All"
                     Clicked="OnSelectAllClicked"
-                    BackgroundColor="#2196F3"
+                    BackgroundColor="{StaticResource Primary}"
                     TextColor="White"
                     CornerRadius="8" />
 
@@ -194,7 +226,7 @@
                     Grid.Column="3"
                     Text="Take Actions"
                     Clicked="OnTakeActionsClicked"
-                    BackgroundColor="#333"
+                    BackgroundColor="{StaticResource Tertiary}"
                     TextColor="White"
                     CornerRadius="8" />
         </Grid>

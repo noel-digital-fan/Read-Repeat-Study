@@ -1,4 +1,4 @@
-﻿using Read_Repeat_Study.Services;
+using Read_Repeat_Study.Services;
 using System.Text.RegularExpressions;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -30,6 +30,7 @@ public partial class ReaderPage : ContentPage
     private string _fullText = string.Empty;
     private bool _isPlaying;
     private bool _isPaused;
+    private bool _isRepeating = false; // Add repeat mode tracking
     private int _resumePageIndex;
     private int _resumePhraseIndex;
     private int _currentPhraseIndex;
@@ -138,6 +139,7 @@ public partial class ReaderPage : ContentPage
         ttsCancel?.Cancel();
         _isPlaying = false;
         _isPaused = false;
+        _isRepeating = false; // Stop repeating when leaving page
         
         // Save current page when leaving the reader
         if (CurrentDocument != null && !_isNewDocument)
@@ -198,9 +200,20 @@ public partial class ReaderPage : ContentPage
         foreach (var part in Regex.Split(text, pattern))
         {
             var t = part.Trim();
-            if (!string.IsNullOrEmpty(t)) list.Add(new PhraseViewModel { Text = t });
+            if (!string.IsNullOrEmpty(t)) 
+            {
+                var phrase = new PhraseViewModel { Text = t };
+                // Set initial color based on current theme
+                phrase.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
+                list.Add(phrase);
+            }
         }
-        if (list.Count == 0) list.Add(new PhraseViewModel { Text = text });
+        if (list.Count == 0) 
+        {
+            var phrase = new PhraseViewModel { Text = text };
+            phrase.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
+            list.Add(phrase);
+        }
         return list;
     }
 
@@ -234,6 +247,10 @@ public partial class ReaderPage : ContentPage
                 BackgroundColor = vm.BackgroundColor,
                 LineBreakMode = LineBreakMode.WordWrap
             };
+            
+            // Set theme-appropriate text color
+            lbl.SetAppThemeColor(Label.TextColorProperty, Colors.Black, Colors.White);
+            
             int capture = i;
             var tap = new TapGestureRecognizer();
             tap.Tapped += async (s, e) =>
@@ -285,28 +302,40 @@ public partial class ReaderPage : ContentPage
         _completedDocument = false; // starting new playback
         try
         {
-            for (int p = startPage; p < _pages.Count; p++)
+            do
             {
-                _currentPageIndex = p;
-                UpdatePageDisplay();
-                int phraseStart = (p == startPage ? startPhrase : 0);
-                for (int i = phraseStart; i < CurrentPagePhrases.Count; i++)
+                for (int p = startPage; p < _pages.Count; p++)
                 {
-                    token.ThrowIfCancellationRequested();
-                    _currentPhraseIndex = i;
-                    HighlightPhrase(i);
-                    ScrollToPhrase(i);
-                    await TextToSpeech.Default.SpeakAsync(CurrentPagePhrases[i].Text, new SpeechOptions { Locale = selectedLocale }, token);
-                    DimPhrase(i);
+                    _currentPageIndex = p;
+                    UpdatePageDisplay();
+                    int phraseStart = (p == startPage ? startPhrase : 0);
+                    for (int i = phraseStart; i < CurrentPagePhrases.Count; i++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        _currentPhraseIndex = i;
+                        HighlightPhrase(i);
+                        ScrollToPhrase(i);
+                        await TextToSpeech.Default.SpeakAsync(CurrentPagePhrases[i].Text, new SpeechOptions { Locale = selectedLocale }, token);
+                        DimPhrase(i);
+                    }
                 }
-            }
-            // Successful completion reached end of document
-            if (!_isPaused && !_userSelected)
-            {
-                _completedDocument = true;
-                _lastPhrasePage = _currentPageIndex;
-                _lastPhraseIndex = _currentPhraseIndex;
-            }
+                // Successful completion reached end of document
+                if (!_isPaused && !_userSelected)
+                {
+                    _completedDocument = true;
+                    _lastPhrasePage = _currentPageIndex;
+                    _lastPhraseIndex = _currentPhraseIndex;
+                }
+                
+                // If repeating, reset to beginning
+                if (_isRepeating && !token.IsCancellationRequested)
+                {
+                    startPage = 0;
+                    startPhrase = 0;
+                    await Task.Delay(500, token); // Small delay before repeating
+                }
+            } 
+            while (_isRepeating && !token.IsCancellationRequested);
         }
         catch (OperationCanceledException)
         {
@@ -343,29 +372,34 @@ public partial class ReaderPage : ContentPage
             if (i == index)
             {
                 vm.BackgroundColor = Colors.Yellow;
-                vm.TextColor = Colors.Black;
+                vm.TextColor = Colors.Black; // Always black on yellow for readability
             }
             else if (vm.BackgroundColor == Colors.Transparent)
             {
-                vm.TextColor = Colors.Black;
+                // Use theme-appropriate text color
+                vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
             }
         }
     }
+    
     private void DimPhrase(int index)
     {
         if (index >= 0 && index < CurrentPagePhrases.Count)
         {
             var vm = CurrentPagePhrases[index];
             vm.BackgroundColor = Colors.Transparent;
-            vm.TextColor = Colors.Gray;
+            // Use theme-appropriate dimmed color
+            vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.LightGray : Colors.Gray;
         }
     }
+    
     private void ResetHighlighting()
     {
         foreach (var vm in CurrentPagePhrases)
         {
             vm.BackgroundColor = Colors.Transparent;
-            vm.TextColor = Colors.Black;
+            // Use theme-appropriate text color
+            vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
         }
     }
 
@@ -378,6 +412,7 @@ public partial class ReaderPage : ContentPage
             UpdatePageDisplay();
         }
     }
+    
     private void OnNextPageClicked(object sender, EventArgs e)
     {
         if (_isPlaying) return;
@@ -411,6 +446,7 @@ public partial class ReaderPage : ContentPage
             ScrollToTop();
         }
     }
+    
     private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true);
     private void OnSaveDocumentClicked(object sender, EventArgs e) => SetEditMode(false);
 
@@ -422,6 +458,7 @@ public partial class ReaderPage : ContentPage
             VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
         }
     }
+    
     private void OnVoiceChanged(object sender, EventArgs e)
     {
         if (VoicePicker.SelectedIndex >= 0)
@@ -430,6 +467,7 @@ public partial class ReaderPage : ContentPage
             _ = SaveVoiceSelectionAsync();
         }
     }
+    
     private async Task SaveVoiceSelectionAsync()
     {
         if (CurrentDocument != null && selectedLocale != null)
@@ -438,7 +476,9 @@ public partial class ReaderPage : ContentPage
             await _db.SaveDocumentAsync(CurrentDocument);
         }
     }
+    
     private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e) => pendingSearchText = e.NewTextValue ?? string.Empty;
+    
     private void OnVoiceSearchButtonPressed(object sender, EventArgs e)
     {
         var search = pendingSearchText.Trim().ToLowerInvariant();
@@ -496,14 +536,27 @@ public partial class ReaderPage : ContentPage
     {
         if (!_isPlaying) return;
         _isPaused = true;
+        _isRepeating = false; // Stop repeating when paused
+        RepeatButton.BackgroundColor = Color.FromArgb("#3f8cff"); // Reset repeat button color
         ttsCancel?.Cancel();
     }
 
-    private void OnRepeatClicked(object sender, EventArgs e)
+    private async void OnRepeatClicked(object sender, EventArgs e)
     {
-        if (_completedDocument && !_isPlaying)
+        _isRepeating = !_isRepeating;
+        
+        // Update button appearance
+        RepeatButton.BackgroundColor = _isRepeating ? Colors.Green : Color.FromArgb("#3f8cff");
+        
+        if (_isRepeating && !_isPlaying)
         {
+            // Start playing immediately if not already playing
             OnPlayClicked(sender, e);
+        }
+        else if (!_isRepeating)
+        {
+            // If turning off repeat while playing, just change the flag
+            // The loop will stop after current cycle
         }
     }
 
