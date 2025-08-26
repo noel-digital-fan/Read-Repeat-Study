@@ -20,21 +20,33 @@
         <Grid
             AbsoluteLayout.LayoutBounds="0,0,1,1"
             AbsoluteLayout.LayoutFlags="All"
-            RowDefinitions="Auto,*,Auto"
+            RowDefinitions="Auto,Auto,*,Auto"
             Padding="16"
             RowSpacing="12">
 
-            <!-- Documents Header -->
-            <Label Grid.Row="0"
+            <!-- Grid.Row="0" - Export Report Button at Top Right -->
+            <HorizontalStackLayout Grid.Row="0" HorizontalOptions="Start" Margin="0,0,0,8">
+                <Button Text="Export Report"
+                        Clicked="OnExportReportClicked"
+                        BackgroundColor="Orange"
+                        TextColor="White"
+                        CornerRadius="8"
+                        WidthRequest="130"
+                        FontSize="14"
+                        FontAttributes="Bold" />
+            </HorizontalStackLayout>
+
+            <!-- Grid.Row="1" - Documents Header -->
+            <Label Grid.Row="1"
                    Text="Your Documents"
                    FontSize="20"
                    FontAttributes="Bold"
                    TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
                    Margin="0,8,0,0"/>
 
-            <!-- Documents Collection -->
+            <!-- Grid.Row="2" - Documents Collection -->
             <CollectionView x:Name="DocumentsCollection"
-                            Grid.Row="1"
+                            Grid.Row="2"
                             ItemsSource="{Binding Documents}"
                             SelectionMode="None">
                 <CollectionView.ItemTemplate>
@@ -123,23 +135,23 @@
                 </CollectionView.EmptyView>
             </CollectionView>
 
-            <!-- Import and Create Buttons at Bottom -->
-            <HorizontalStackLayout Grid.Row="2" HorizontalOptions="Center" Spacing="12" Margin="0,12,0,0">
-                <Button Text="Import Text Files"
+            <!-- Grid.Row="3" - Import and Create Buttons at Bottom -->
+            <HorizontalStackLayout Grid.Row="3" HorizontalOptions="Center" Spacing="12" Margin="0,12,0,0">
+                <Button Text="Import Files"
                         Clicked="OnImportFilesClicked"
                         BackgroundColor="{StaticResource Primary}"
                         TextColor="White"
                         CornerRadius="8"
-                        WidthRequest="180"
+                        WidthRequest="140"
                         FontSize="14"
                         FontAttributes="Bold" />
                 
-                <Button Text="Create New File"
+                <Button Text="Create File"
                         Clicked="OnCreateDocumentClicked"
                         BackgroundColor="Green"
                         TextColor="White"
                         CornerRadius="8"
-                        WidthRequest="180"
+                        WidthRequest="140"
                         FontSize="14"
                         FontAttributes="Bold" />
             </HorizontalStackLayout>
@@ -171,19 +183,6 @@
                         Scale="0.7" />
             </HorizontalStackLayout>
         </Frame>
-
-        <!-- Floating Create Document Button -->
-        <Button AbsoluteLayout.LayoutBounds="1,1,60,60"
-                AbsoluteLayout.LayoutFlags="PositionProportional"
-                Text="+"
-                BackgroundColor="{StaticResource Primary}"
-                TextColor="White"
-                FontSize="28"
-                FontAttributes="Bold"
-                CornerRadius="30"
-                Padding="0"
-                Margin="0,0,16,80"
-                Clicked="OnCreateDocumentClicked" />
 
         <BoxView x:Name="InputBlocker"
                  AbsoluteLayout.LayoutBounds="0,1,1,0.1"

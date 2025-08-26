@@ -21,10 +21,11 @@ namespace Read_Repeat_Study
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
-            // Register your DatabaseService as a singleton
+            // Register services
             builder.Services.AddSingleton<DatabaseService>();
+            builder.Services.AddSingleton<ReportService>();
 
-            // *** ADD THESE PAGE REGISTRATIONS ***
+            // Register pages
             builder.Services.AddTransient<FlagsPage>();
             builder.Services.AddTransient<AddEditFlagPage>();
             builder.Services.AddTransient<ReaderPage>();

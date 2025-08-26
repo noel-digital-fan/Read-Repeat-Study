@@ -11,6 +11,7 @@ namespace Read_Repeat_Study.Pages
     public partial class HomePage : ContentPage
     {
         private readonly DatabaseService _db;
+        private readonly ReportService _reportService;
         public ObservableCollection<ImportedDocument> Documents { get; }
         public ICommand DocumentLongPressedCommand { get; }
         private readonly ObservableCollection<ImportedDocument> selectedDocuments = new();
@@ -22,10 +23,11 @@ namespace Read_Repeat_Study.Pages
         private bool _isProcessingThemeToggle = false; // prevents recursion when reverting switch
         private bool _currentIsLight = true; // tracks accepted theme state
 
-        public HomePage(DatabaseService db) // Dependency Injection of DatabaseService
+        public HomePage(DatabaseService db, ReportService reportService) // Dependency Injection
         {
             InitializeComponent();
             _db = db;
+            _reportService = reportService;
             Documents = new ObservableCollection<ImportedDocument>();
             DocumentLongPressedCommand = new Command<ImportedDocument>(OnDocumentLongPressed);
             BindingContext = this;
@@ -285,6 +287,7 @@ namespace Read_Repeat_Study.Pages
                 Documents.Clear();
                 foreach (var i in items) Documents.Add(i);
             });
+
         }
 
         async Task<Flags> SelectFlagAsync() // Prompt user to select a flag
@@ -386,7 +389,7 @@ namespace Read_Repeat_Study.Pages
                             {
                                 string html = chapter.Content;
                                 html = Regex.Replace(html, "<style[\\s\\S]*?>[\\s\\S]*?<\\/style>", string.Empty, RegexOptions.IgnoreCase); // 1. Remove <style> tags and their contents
-                                html = Regex.Replace(html, "<(header|footer|nav)[\\s\\S]*?>[\\s\\S]*?<\\/(header|footer|nav)>", string.Empty, RegexOptions.IgnoreCase); // 2. Remove <header>, <footer>, and <nav> tags and their contents
+                                html = Regex.Replace(html, "<(header|footer|nav)[\\s\\S]*?>[\\s\\S]*?<\\/style>", string.Empty, RegexOptions.IgnoreCase); // 2. Remove <header>, <footer>, and <nav> tags and their contents
                                 string plainText = HtmlToPlainText(html); // 3. Convert remaining HTML to plain text
                                 builder.AppendLine(plainText);
                             }
@@ -416,8 +419,6 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
             await DisplayAlert("Import Complete", $"Imported {supportedFiles.Count} file(s).", "OK");
         }
-
-
 
         private async Task LoadDocumentsAsync() // Load documents from database
         {
@@ -527,9 +528,45 @@ namespace Read_Repeat_Study.Pages
                 DisplayAlert("No Selection", "Please select a document to edit.", "OK");
             }
         }
-        void UpdateEditButtonVisibility() // Show edit button only if one document is selected
+
+        void UpdateEditButtonVisibility()
         {
             EditDocumentButton.IsVisible = selectedDocuments.Count == 1;
+        }
+
+        private async void OnExportReportClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                if (!Documents.Any())
+                {
+                    await DisplayAlert("No Data", "No documents to export.", "OK");
+                    return;
+                }
+
+                var choice = await DisplayActionSheet("Export Format", "Cancel", null, "CSV Report", "Text Report");
+                
+                if (choice == "Cancel") return;
+
+                string filePath;
+
+                if (choice == "CSV Report")
+                {
+                    filePath = await _reportService.ExportToCsvAsync(Documents);
+                    await DisplayAlert("Export Complete", 
+                        $"CSV report exported successfully!\nLocation: {filePath}", "OK");
+                }
+                else if (choice == "Text Report")
+                {
+                    filePath = await _reportService.ExportToTextAsync(Documents);
+                    await DisplayAlert("Export Complete", 
+                        $"Text report exported successfully!\nLocation: {filePath}", "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Export Error", $"Failed to export report: {ex.Message}", "OK");
+            }
         }
     }
 }
