@@ -44,6 +44,7 @@ namespace Read_Repeat_Study.Pages
 
             selectedFlags.Clear();
             SelectionBar.IsVisible = false;
+            InputBlocker.IsVisible = false;
             UpdateActionButtons();
         }
 
@@ -67,7 +68,6 @@ namespace Read_Repeat_Study.Pages
             ignoreNextTapAfterLongPress = true;
             UpdateActionButtons();
         }
-
 
         void OnFlagTapped(int flagId) // Tap: select/deselect in multi-select, or edit in single-select
         {
@@ -103,60 +103,6 @@ namespace Read_Repeat_Study.Pages
             => await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
 
         void OnEditSelected(object sender, EventArgs e) // Edit selected (only if one)
-        {
-            if (selectedFlags.Count == 1)
-                _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={selectedFlags[0].ID}");
-
-            async void OnDeleteSelected(object sender, EventArgs e) // Delete selected (one or more)
-            {
-                if (!selectedFlags.Any()) return;
-
-                bool ok = await DisplayAlert(
-                    "Confirm Delete",
-                    $"Delete {selectedFlags.Count} flag(s)?",
-                    "Yes", "No");
-                if (!ok) return;
-
-                foreach (var f in selectedFlags.ToList())
-                {
-                    await _db.DeleteFlagAsync(f);
-                    FlagsCollectionItems.Remove(f);
-                }
-
-                HideSelectionBar();
-            }
-
-            void OnSelectAll(object sender, EventArgs e) // Select all flags
-            {
-                foreach (var f in FlagsCollectionItems)
-                {
-                    if (!f.IsSelected)
-                    {
-                        f.IsSelected = true;
-                        selectedFlags.Add(f);
-                    }
-                }
-                UpdateActionButtons();
-            }
-
-            void OnCancelSelection(object sender, EventArgs e) // Cancel selection
-                => HideSelectionBar();
-
-            void HideSelectionBar() // Hide selection bar and clear selections
-            {
-                foreach (var f in selectedFlags)
-                    f.IsSelected = false;
-
-                selectedFlags.Clear();
-                SelectionBar.IsVisible = false;
-                InputBlocker.IsVisible = false;
-                UpdateActionButtons();
-            }
-        }
-
-        // Move HideSelectionBar and related methods out of OnEditSelected to be at the class level
-
-        void OnEditSelection(object sender, EventArgs e) // Edit selected (only if one)
         {
             if (selectedFlags.Count == 1)
                 _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={selectedFlags[0].ID}");
@@ -197,10 +143,9 @@ namespace Read_Repeat_Study.Pages
         void OnCancelSelection(object sender, EventArgs e) // Cancel selection
             => HideSelectionBar();
 
-        private void OnBlockerTapped(object sender, TappedEventArgs e) // Tap on blocker also cancels selection
+        private void OnBlockerTapped(object sender, EventArgs e) // Tap on blocker also cancels selection
         {
             HideSelectionBar();
-            InputBlocker.IsVisible = false;
         }
 
         void HideSelectionBar() // Hide selection bar and clear selections
@@ -225,7 +170,5 @@ namespace Read_Repeat_Study.Pages
             base.OnDisappearing();
             HideSelectionBar();
         }
-
-
     }
 }

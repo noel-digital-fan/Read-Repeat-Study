@@ -42,10 +42,10 @@
                                   CommandParameter="Yellow" />
                     </BoxView.GestureRecognizers>
                 </BoxView>
-                <BoxView Color="#3f8cff" WidthRequest="32" HeightRequest="32">
+                <BoxView Color="Pink" WidthRequest="32" HeightRequest="32">
                     <BoxView.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding SetBaseColorCommand}"
-                                  CommandParameter="AppBlue" />
+                                  CommandParameter="Pink" />
                     </BoxView.GestureRecognizers>
                 </BoxView>
             </HorizontalStackLayout>

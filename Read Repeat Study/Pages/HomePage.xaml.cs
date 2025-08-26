@@ -397,7 +397,7 @@ namespace Read_Repeat_Study.Pages
                     var doc = new ImportedDocument
                     {
                         Name = Path.GetFileNameWithoutExtension(file.FileName),
-                        FilePath = file.FullPath,
+                        FilePath = null, // Internal storage only
                         Content = content,
                         ImportedDate = DateTime.Now,
                         FlagId = flag?.ID,

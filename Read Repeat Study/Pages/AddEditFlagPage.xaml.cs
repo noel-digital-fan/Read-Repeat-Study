@@ -26,7 +26,7 @@ namespace Read_Repeat_Study.Pages
                     "Green" => Colors.Green,
                     "Blue" => Colors.Blue,
                     "Yellow" => Colors.Yellow,
-                    "AppBlue" => Color.FromArgb("#3f8cff"),
+                    "Pink" => Colors.Pink,
                     _ => Colors.Transparent
                 };
                 ApplyColor(c);

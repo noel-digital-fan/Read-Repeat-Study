@@ -99,7 +99,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button x:Name="PreviousPageButton"
-                            Text="?"
+                            Text="◀"
                             WidthRequest="40"
                             HeightRequest="35"
                             FontSize="16"
@@ -116,7 +116,7 @@
                            HorizontalOptions="Center"
                            Grid.Column="1" />
                     <Button x:Name="NextPageButton"
-                            Text="?"
+                            Text="▶"
                             WidthRequest="40"
                             HeightRequest="35"
                             FontSize="16"
@@ -128,6 +128,7 @@
                     <Button x:Name="JumpPageButton"
                             WidthRequest="60"
                             HeightRequest="35"
+                            Padding="1"
                             BackgroundColor="#fb923c"
                             TextColor="White"
                             CornerRadius="5"

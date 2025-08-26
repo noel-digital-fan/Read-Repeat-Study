@@ -64,7 +64,14 @@ public partial class ReaderPage : ContentPage
             if (_documentId <= 0)
             {
                 _isNewDocument = true;
-                CurrentDocument = new ImportedDocument { Name = "Untitled", Content = string.Empty };
+                CurrentDocument = new ImportedDocument 
+                { 
+                    Name = "Untitled", 
+                    Content = string.Empty,
+                    FilePath = null, // Internal storage only
+                    ImportedDate = DateTime.Now,
+                    LastPageIndex = 0
+                };
                 _fullText = string.Empty;
                 Title = "New Document";
                 SetEditMode(true);
@@ -97,7 +104,7 @@ public partial class ReaderPage : ContentPage
             _pendingVoiceLocale = CurrentDocument.VoiceLocale;
             
 #if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Loaded document: {CurrentDocument.Name}, LastPageIndex: {CurrentDocument.LastPageIndex}");
+            System.Diagnostics.Debug.WriteLine($"Loaded document: {CurrentDocument.Name}, LastPageIndex: {CurrentDocument.LastPageIndex}, FilePath: {CurrentDocument.FilePath ?? "Database only"}");
 #endif
             
             if (StartInEdit) SetEditMode(true);
@@ -350,7 +357,7 @@ public partial class ReaderPage : ContentPage
         }
     }
 
-    private void HighlightPhrase(int index)
+    private void HighlightPhrase(int index) // Highlight currently spoken phrase
     {
         for (int i = 0; i < CurrentPagePhrases.Count; i++)
         {
@@ -431,7 +438,156 @@ public partial class ReaderPage : ContentPage
     }
     
     private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true); // Switch to edit mode
-    private void OnSaveDocumentClicked(object sender, EventArgs e) => SetEditMode(false); // Save handled in SetEditMode
+    private async void OnSaveDocumentClicked(object sender, EventArgs e) // Save and exit edit mode
+    {
+        _fullText = PageContentEditor.Text ?? string.Empty;
+        await PaginateAsync(_fullText);
+        
+        await SaveEditedContentAsync();
+        SetEditMode(false); 
+    }
+
+    private async Task SaveEditedContentAsync() // Save edited content 
+    {
+        if (CurrentDocument == null) return;
+
+        try
+        {
+            if (_isNewDocument)
+            {
+                CurrentDocument.Content = _fullText;
+                CurrentDocument.Name = CurrentDocument.Name ?? "Untitled";
+                await _db.SaveDocumentAsync(CurrentDocument);
+                _isNewDocument = false;
+                Title = CurrentDocument.Name;
+                await DisplayAlert("Success", "Document saved!", "OK");
+                return;
+            }
+
+            var choice = await DisplayActionSheet(
+                "Save Options", 
+                "Cancel", 
+                null, 
+                "Override Changes", 
+                "Save as New Document");
+
+            switch (choice)
+            {
+                case "Override Changes":
+                    CurrentDocument.Content = _fullText;
+                    CurrentDocument.Name = CurrentDocument.Name ?? "Untitled";
+                    await _db.SaveDocumentAsync(CurrentDocument);
+                    await DisplayAlert("Success", "Document overridden!", "OK");
+                    return;
+
+                case "Save as New Document":
+                    await SaveAsNewDocumentAsync();
+                    return;
+
+                case "Cancel":
+                default:
+                    return; 
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Save Error", $"Failed to save: {ex.Message}", "OK");
+        }
+    }
+
+    private async Task SaveAsNewDocumentAsync() // Save content as a new document
+    {
+        try
+        {
+            var newName = await DisplayPromptAsync(
+                "Save as New Document", 
+                "Enter a name for the new document:", 
+                "Save", 
+                "Cancel", 
+                placeholder: "Enter document name here...");
+
+            if (string.IsNullOrWhiteSpace(newName))
+                return; 
+
+            var newDocument = new ImportedDocument
+            {
+                Name = newName.Trim(),
+                Content = _fullText, 
+                ImportedDate = DateTime.Now,
+                FilePath = null, 
+                FlagId = CurrentDocument?.FlagId,
+                Flag = CurrentDocument?.Flag,
+                VoiceLocale = CurrentDocument?.VoiceLocale,
+                LastPageIndex = 0 
+            };
+
+            await _db.SaveDocumentAsync(newDocument);
+            
+            CurrentDocument = newDocument;
+            _documentId = newDocument.ID;
+            _isNewDocument = false;
+            Title = newDocument.Name;
+            
+            _currentPageIndex = 0;
+            await PaginateAsync(_fullText);
+            UpdatePageDisplay();
+            
+            await DisplayAlert("Success", "Document saved!", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to save new document: {ex.Message}", "OK");
+        }
+    }
+
+    private async Task SaveCurrentPageAsync() // Save current page index to document
+    {
+        if (CurrentDocument == null || _suppressPageSave || _isNewDocument) return;
+        
+        try
+        {
+            // Avoid frequent disk writes if unchanged
+            if (CurrentDocument.LastPageIndex != _currentPageIndex)
+            {
+                CurrentDocument.LastPageIndex = _currentPageIndex;
+                await _db.SaveDocumentAsync(CurrentDocument);
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine($"Saved current page: {_currentPageIndex + 1} for document: {CurrentDocument.Name}");
+#endif
+            }
+        }
+        catch (Exception ex)
+        {
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"Error saving current page: {ex.Message}");
+#endif
+        }
+    }
+
+    private void RestoreSavedPageIfAny() // Call before UpdatePageDisplay
+    {
+        if (CurrentDocument?.LastPageIndex is int idx &&
+            idx >= 0 && idx < _pages.Count)
+        {
+            _suppressPageSave = true;
+            _currentPageIndex = idx;
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"Restored last page: {idx + 1} for document: {CurrentDocument.Name}");
+#endif
+            _suppressPageSave = false;
+        }
+    }
+
+    private async void OnJumpToPageClicked(object sender, EventArgs e) // Prompt for page number
+    {
+        if (_pages.Count <= 1) return;
+        var input = await DisplayPromptAsync("Jump To Page", $"Enter page number (1 - {_pages.Count})", "Go", "Cancel", keyboard: Keyboard.Numeric);
+        if (int.TryParse(input, out int p) && p >= 1 && p <= _pages.Count)
+        {
+            _currentPageIndex = p - 1;
+            UpdatePageDisplay();
+        }
+    }
 
     private void OnVoicePickerFocused(object sender, FocusEventArgs e) // Reset filter when focusing
     {
@@ -515,7 +671,7 @@ public partial class ReaderPage : ContentPage
         await PlayFromAsync(_currentPageIndex, 0);
     }
 
-    private void OnPauseClicked(object sender, EventArgs e)
+    private void OnPauseClicked(object sender, EventArgs e) // Pause playback
     {
         if (!_isPlaying) return;
         _isPaused = true;
@@ -537,55 +693,6 @@ public partial class ReaderPage : ContentPage
         else if (!_isRepeating)
         {
             // Nothing to do here, playback continues until end or paused
-        }
-    }
-
-    private async Task SaveCurrentPageAsync() // Save current page index to document
-    {
-        if (CurrentDocument == null || _suppressPageSave || _isNewDocument) return;
-        
-        try
-        {
-            // Avoid frequent disk writes if unchanged
-            if (CurrentDocument.LastPageIndex != _currentPageIndex)
-            {
-                CurrentDocument.LastPageIndex = _currentPageIndex;
-                await _db.SaveDocumentAsync(CurrentDocument);
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine($"Saved current page: {_currentPageIndex + 1} for document: {CurrentDocument.Name}");
-#endif
-            }
-        }
-        catch (Exception ex)
-        {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Error saving current page: {ex.Message}");
-#endif
-        }
-    }
-
-    private void RestoreSavedPageIfAny() // Call before UpdatePageDisplay
-    {
-        if (CurrentDocument?.LastPageIndex is int idx &&
-            idx >= 0 && idx < _pages.Count)
-        {
-            _suppressPageSave = true;
-            _currentPageIndex = idx;
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Restored last page: {idx + 1} for document: {CurrentDocument.Name}");
-#endif
-            _suppressPageSave = false;
-        }
-    }
-
-    private async void OnJumpToPageClicked(object sender, EventArgs e) // Prompt for page number
-    {
-        if (_pages.Count <= 1) return;
-        var input = await DisplayPromptAsync("Jump To Page", $"Enter page number (1 - {_pages.Count})", "Go", "Cancel", keyboard: Keyboard.Numeric);
-        if (int.TryParse(input, out int p) && p >= 1 && p <= _pages.Count)
-        {
-            _currentPageIndex = p - 1;
-            UpdatePageDisplay();
         }
     }
 }
