@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="MainTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+    <style name="MainTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:statusBarColor">@color/colorPrimaryDark</item>
+        <item name="android:windowBackground">@android:color/white</item>
         <!-- Required for TouchBehavior and other Material components -->
         <item name="textAppearanceButton">@style/TextAppearance.MaterialComponents.Button</item>
         <item name="materialButtonStyle">@style/Widget.MaterialComponents.Button</item>
@@ -17,11 +18,10 @@
         <item name="android:statusBarColor">@color/colorPrimary</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
-        <item name="android:windowFullscreen">false</item>
-        <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowIsTranslucent">false</item>
     </style>
 
     <style name="Maui.SplashTheme" parent="MainTheme.Splash">
+    </style>
+    <style name="Maui.MainTheme" parent="MainTheme">
     </style>
 </resources>
