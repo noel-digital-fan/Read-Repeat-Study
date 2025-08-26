@@ -1,20 +1,10 @@
+using Read_Repeat_Study.Classes;
 using Read_Repeat_Study.Services;
-using System.Text.RegularExpressions;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 
 namespace Read_Repeat_Study;
-
-public class PhraseViewModel : INotifyPropertyChanged
-{
-    private Color _textColor = Colors.Black; // default text color
-    private Color _backgroundColor = Colors.Transparent; // default background color
-    public string Text { get; set; } = string.Empty; // phrase text
-    public Color TextColor { get => _textColor; set { if (_textColor != value) { _textColor = value; OnPropertyChanged(); } } } // text color with notification
-    public Color BackgroundColor { get => _backgroundColor; set { if (_backgroundColor != value) { _backgroundColor = value; OnPropertyChanged(); } } } // background color with notification
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); // notify property change
-}
 
 [QueryProperty(nameof(DocumentId), "docId")]
 [QueryProperty(nameof(StartInEdit), "edit")]
@@ -64,9 +54,9 @@ public partial class ReaderPage : ContentPage
             if (_documentId <= 0)
             {
                 _isNewDocument = true;
-                CurrentDocument = new ImportedDocument 
-                { 
-                    Name = "Untitled", 
+                CurrentDocument = new ImportedDocument
+                {
+                    Name = "Untitled",
                     Content = string.Empty,
                     FilePath = null, // Internal storage only
                     ImportedDate = DateTime.Now,
@@ -102,11 +92,11 @@ public partial class ReaderPage : ContentPage
             SetEditMode(false);
             await PaginateAsync(_fullText);
             _pendingVoiceLocale = CurrentDocument.VoiceLocale;
-            
+
 #if DEBUG
             System.Diagnostics.Debug.WriteLine($"Loaded document: {CurrentDocument.Name}, LastPageIndex: {CurrentDocument.LastPageIndex}, FilePath: {CurrentDocument.FilePath ?? "Database only"}");
 #endif
-            
+
             if (StartInEdit) SetEditMode(true);
         }
     }
@@ -142,7 +132,7 @@ public partial class ReaderPage : ContentPage
         _isPlaying = false;
         _isPaused = false;
         _isRepeating = false;
-        
+
         if (CurrentDocument != null && !_isNewDocument)
         {
             await SaveCurrentPageAsync();
@@ -185,9 +175,9 @@ public partial class ReaderPage : ContentPage
             _pagePhrases.Add(new());
         }
         _currentPageIndex = Math.Min(_currentPageIndex, _pages.Count - 1);
-        
+
         RestoreSavedPageIfAny();
-        
+
         UpdatePageDisplay();
         return Task.CompletedTask;
     }
@@ -200,14 +190,14 @@ public partial class ReaderPage : ContentPage
         foreach (var part in Regex.Split(text, pattern))
         {
             var t = part.Trim();
-            if (!string.IsNullOrEmpty(t)) 
+            if (!string.IsNullOrEmpty(t))
             {
                 var phrase = new PhraseViewModel { Text = t };
                 phrase.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
                 list.Add(phrase);
             }
         }
-        if (list.Count == 0) 
+        if (list.Count == 0)
         {
             var phrase = new PhraseViewModel { Text = text };
             phrase.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
@@ -245,15 +235,15 @@ public partial class ReaderPage : ContentPage
                 BackgroundColor = vm.BackgroundColor,
                 LineBreakMode = LineBreakMode.WordWrap
             };
-            
+
             lbl.SetAppThemeColor(Label.TextColorProperty, Colors.Black, Colors.White);
-            
+
             int capture = i;
             var tap = new TapGestureRecognizer();
             tap.Tapped += async (s, e) =>
             {
                 _userSelected = true;
-                _isPaused = false; 
+                _isPaused = false;
                 _selectedStartPage = _currentPageIndex;
                 _selectedStartPhrase = capture;
                 await PlayFromAsync(_currentPageIndex, capture);
@@ -295,10 +285,18 @@ public partial class ReaderPage : ContentPage
         var token = ttsCancel.Token;
         _isPlaying = true;
         _completedDocument = false;
+        bool firstLoop = true;
+
         try
         {
             do
             {
+                if (!firstLoop && _isRepeating)
+                {
+                    startPage = 0;
+                    startPhrase = 0;
+                }
+                
                 for (int p = startPage; p < _pages.Count; p++)
                 {
                     _currentPageIndex = p;
@@ -314,20 +312,15 @@ public partial class ReaderPage : ContentPage
                         DimPhrase(i);
                     }
                 }
-                if (!_isPaused && !_userSelected)
+                if (!_isPaused && !_userSelected && !_isRepeating)
                 {
                     _completedDocument = true;
                     _lastPhrasePage = _currentPageIndex;
                     _lastPhraseIndex = _currentPhraseIndex;
                 }
-                
-                if (_isRepeating && !token.IsCancellationRequested)
-                {
-                    startPage = 0;
-                    startPhrase = 0;
-                    await Task.Delay(500, token);
-                }
-            } 
+
+                firstLoop = false;
+            }
             while (_isRepeating && !token.IsCancellationRequested);
         }
         catch (OperationCanceledException)
@@ -373,7 +366,7 @@ public partial class ReaderPage : ContentPage
             }
         }
     }
-    
+
     private void DimPhrase(int index) // Dim phrase after spoken
     {
         if (index >= 0 && index < CurrentPagePhrases.Count)
@@ -383,7 +376,7 @@ public partial class ReaderPage : ContentPage
             vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.LightGray : Colors.Gray;
         }
     }
-    
+
     private void ResetHighlighting() // Clear all highlights and restore normal text color
     {
         foreach (var vm in CurrentPagePhrases)
@@ -402,7 +395,7 @@ public partial class ReaderPage : ContentPage
             UpdatePageDisplay();
         }
     }
-    
+
     private void OnNextPageClicked(object sender, EventArgs e) // Next page
     {
         if (_isPlaying) return;
@@ -436,15 +429,15 @@ public partial class ReaderPage : ContentPage
             ScrollToTop();
         }
     }
-    
+
     private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true); // Switch to edit mode
     private async void OnSaveDocumentClicked(object sender, EventArgs e) // Save and exit edit mode
     {
         _fullText = PageContentEditor.Text ?? string.Empty;
         await PaginateAsync(_fullText);
-        
+
         await SaveEditedContentAsync();
-        SetEditMode(false); 
+        SetEditMode(false);
     }
 
     private async Task SaveEditedContentAsync() // Save edited content 
@@ -465,10 +458,10 @@ public partial class ReaderPage : ContentPage
             }
 
             var choice = await DisplayActionSheet(
-                "Save Options", 
-                "Cancel", 
-                null, 
-                "Override Changes", 
+                "Save Options",
+                "Cancel",
+                null,
+                "Override Changes",
                 "Save as New Document");
 
             switch (choice)
@@ -486,7 +479,7 @@ public partial class ReaderPage : ContentPage
 
                 case "Cancel":
                 default:
-                    return; 
+                    return;
             }
         }
         catch (Exception ex)
@@ -500,38 +493,38 @@ public partial class ReaderPage : ContentPage
         try
         {
             var newName = await DisplayPromptAsync(
-                "Save as New Document", 
-                "Enter a name for the new document:", 
-                "Save", 
-                "Cancel", 
+                "Save as New Document",
+                "Enter a name for the new document:",
+                "Save",
+                "Cancel",
                 placeholder: "Enter document name here...");
 
             if (string.IsNullOrWhiteSpace(newName))
-                return; 
+                return;
 
             var newDocument = new ImportedDocument
             {
                 Name = newName.Trim(),
-                Content = _fullText, 
+                Content = _fullText,
                 ImportedDate = DateTime.Now,
-                FilePath = null, 
+                FilePath = null,
                 FlagId = CurrentDocument?.FlagId,
                 Flag = CurrentDocument?.Flag,
                 VoiceLocale = CurrentDocument?.VoiceLocale,
-                LastPageIndex = 0 
+                LastPageIndex = 0
             };
 
             await _db.SaveDocumentAsync(newDocument);
-            
+
             CurrentDocument = newDocument;
             _documentId = newDocument.ID;
             _isNewDocument = false;
             Title = newDocument.Name;
-            
+
             _currentPageIndex = 0;
             await PaginateAsync(_fullText);
             UpdatePageDisplay();
-            
+
             await DisplayAlert("Success", "Document saved!", "OK");
         }
         catch (Exception ex)
@@ -543,7 +536,7 @@ public partial class ReaderPage : ContentPage
     private async Task SaveCurrentPageAsync() // Save current page index to document
     {
         if (CurrentDocument == null || _suppressPageSave || _isNewDocument) return;
-        
+
         try
         {
             // Avoid frequent disk writes if unchanged
@@ -597,7 +590,7 @@ public partial class ReaderPage : ContentPage
             VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
         }
     }
-    
+
     private void OnVoiceChanged(object sender, EventArgs e) // Save selected voice
     {
         if (VoicePicker.SelectedIndex >= 0)
@@ -606,7 +599,7 @@ public partial class ReaderPage : ContentPage
             _ = SaveVoiceSelectionAsync();
         }
     }
-    
+
     private async Task SaveVoiceSelectionAsync() // Save selected voice to document
     {
         if (CurrentDocument != null && selectedLocale != null)
@@ -615,7 +608,7 @@ public partial class ReaderPage : ContentPage
             await _db.SaveDocumentAsync(CurrentDocument);
         }
     }
-    
+
     private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e) => pendingSearchText = e.NewTextValue ?? string.Empty; // Update pending search text
 
     private void OnVoiceSearchButtonPressed(object sender, EventArgs e) // Apply search filter
@@ -668,6 +661,7 @@ public partial class ReaderPage : ContentPage
             finally { _isPlaying = false; }
             return;
         }
+
         await PlayFromAsync(_currentPageIndex, 0);
     }
 
@@ -683,16 +677,29 @@ public partial class ReaderPage : ContentPage
     private async void OnRepeatClicked(object sender, EventArgs e) // Toggle repeat mode
     {
         _isRepeating = !_isRepeating;
-        
         RepeatButton.BackgroundColor = _isRepeating ? Colors.Green : Color.FromArgb("#3f8cff");
         
-        if (_isRepeating && !_isPlaying)
+        if (_isRepeating)
         {
-            OnPlayClicked(sender, e);
-        }
-        else if (!_isRepeating)
-        {
-            // Nothing to do here, playback continues until end or paused
+            _completedDocument = false;
+            _userSelected = false;
+            
+            if (_isPlaying)
+            {
+                ttsCancel?.Cancel();
+                MainThread.BeginInvokeOnMainThread(async () => 
+                {
+                    await Task.Delay(100);
+                    if (!_isPlaying)
+                    {
+                        await PlayFromAsync(_currentPageIndex, _currentPhraseIndex);
+                    }
+                });
+            }
+            else
+            {
+                _ = PlayFromAsync(_currentPageIndex, 0);
+            }
         }
     }
 }
