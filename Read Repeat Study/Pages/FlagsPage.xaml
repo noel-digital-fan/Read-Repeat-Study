@@ -111,7 +111,7 @@
                     CornerRadius="8"
                     Clicked="OnEditSelected"
                     IsVisible="False"
-                    HorizontalOptions="StartAndExpand" />
+                    HorizontalOptions="Start" />
 
             <Button x:Name="DeleteButton"
                     Text="Delete"
@@ -120,14 +120,14 @@
                     CornerRadius="8"
                     Clicked="OnDeleteSelected"
                     IsVisible="False"
-                    HorizontalOptions="CenterAndExpand" />
+                    HorizontalOptions="Center" />
 
             <Button Text="Select All"
                     BackgroundColor="{StaticResource Primary}"
                     TextColor="White"
                     CornerRadius="8"
                     Clicked="OnSelectAll"
-                    HorizontalOptions="EndAndExpand" />
+                    HorizontalOptions="End" />
 
             <Button Text="Cancel"
                     BackgroundColor="#9E9E9E"

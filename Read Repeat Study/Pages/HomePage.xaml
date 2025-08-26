@@ -7,7 +7,6 @@
     x:Class="Read_Repeat_Study.Pages.HomePage"
     x:Name="HomePageRoot"
     Title="Home">
-
     <ContentPage.Resources>
         <ResourceDictionary>
             <local:MathConverter x:Key="MathConverter" />

@@ -6,7 +6,7 @@ namespace Read_Repeat_Study.Classes
 {
     public class MathConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) // Converts an integer value by adding 1 (e.g., for page numbers)
         {
             if (value is int intValue)
             {
@@ -21,7 +21,7 @@ namespace Read_Repeat_Study.Classes
             return value;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) // Convert back is not implemented
         {
             throw new NotImplementedException();
         }

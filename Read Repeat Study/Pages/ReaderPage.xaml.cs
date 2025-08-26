@@ -7,55 +7,55 @@ namespace Read_Repeat_Study;
 
 public class PhraseViewModel : INotifyPropertyChanged
 {
-    private Color _textColor = Colors.Black;
-    private Color _backgroundColor = Colors.Transparent;
-    public string Text { get; set; } = string.Empty;
-    public Color TextColor { get => _textColor; set { if (_textColor != value) { _textColor = value; OnPropertyChanged(); } } }
-    public Color BackgroundColor { get => _backgroundColor; set { if (_backgroundColor != value) { _backgroundColor = value; OnPropertyChanged(); } } }
+    private Color _textColor = Colors.Black; // default text color
+    private Color _backgroundColor = Colors.Transparent; // default background color
+    public string Text { get; set; } = string.Empty; // phrase text
+    public Color TextColor { get => _textColor; set { if (_textColor != value) { _textColor = value; OnPropertyChanged(); } } } // text color with notification
+    public Color BackgroundColor { get => _backgroundColor; set { if (_backgroundColor != value) { _backgroundColor = value; OnPropertyChanged(); } } } // background color with notification
     public event PropertyChangedEventHandler? PropertyChanged;
-    protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)); // notify property change
 }
 
 [QueryProperty(nameof(DocumentId), "docId")]
 [QueryProperty(nameof(StartInEdit), "edit")]
 public partial class ReaderPage : ContentPage
 {
-    private readonly DatabaseService _db;
-    private ImportedDocument? CurrentDocument;
-    private int _documentId;
-    private bool _isNewDocument;
-    private readonly List<string> _pages = new();
-    private readonly List<List<PhraseViewModel>> _pagePhrases = new();
-    private int _currentPageIndex;
-    private string _fullText = string.Empty;
-    private bool _isPlaying;
-    private bool _isPaused;
+    private readonly DatabaseService _db; // database service
+    private ImportedDocument? CurrentDocument; // current document
+    private int _documentId; // current document ID
+    private bool _isNewDocument; // tracks if document is new
+    private readonly List<string> _pages = new(); // all pages
+    private readonly List<List<PhraseViewModel>> _pagePhrases = new(); // phrases per page
+    private int _currentPageIndex; // current page index
+    private string _fullText = string.Empty; // entire document text
+    private bool _isPlaying; // play mode tracking
+    private bool _isPaused; // pause mode tracking
     private bool _isRepeating = false; // Add repeat mode tracking
-    private int _resumePageIndex;
-    private int _resumePhraseIndex;
-    private int _currentPhraseIndex;
-    private CancellationTokenSource? ttsCancel;
-    private bool _isEditing;
-    private List<Locale> systemLocales = new();
-    private List<Locale> filteredLocales = new();
-    private Locale? selectedLocale;
-    private string pendingSearchText = string.Empty;
-    public bool StartInEdit { get; set; }
-    public ObservableCollection<PhraseViewModel> CurrentPagePhrases { get; } = new();
+    private int _resumePageIndex; // indices to resume from when paused
+    private int _resumePhraseIndex; // indices to resume from when paused
+    private int _currentPhraseIndex; // currently spoken phrase index
+    private CancellationTokenSource? ttsCancel; // cancellation for TTS
+    private bool _isEditing; // edit mode flag
+    private List<Locale> systemLocales = new(); // all available voices
+    private List<Locale> filteredLocales = new(); // filtered voices for picker
+    private Locale? selectedLocale; // currently selected voice
+    private string pendingSearchText = string.Empty; // text in search box
+    public bool StartInEdit { get; set; } = false; // whether to start in edit mode
+    public ObservableCollection<PhraseViewModel> CurrentPagePhrases { get; } = new(); // phrases for current page
 
     private bool _completedDocument; // end-of-document playback finished
-    private int _lastPhrasePage;
-    private int _lastPhraseIndex;
+    private int _lastPhrasePage; // page index of last spoken phrase
+    private int _lastPhraseIndex; // phrase index of last spoken phrase
     private bool _userSelected; // user explicitly tapped a phrase
-    private int _selectedStartPage;
-    private int _selectedStartPhrase;
+    private int _selectedStartPage; // page index to start from on user tap
+    private int _selectedStartPhrase; // phrase index to start from on user tap
 
     private Task? _loadDocumentTask; // track async load
     private string? _pendingVoiceLocale; // voice locale to apply after locales load
 
     private bool _suppressPageSave; // prevents save recursion during initial load
 
-    public int DocumentId
+    public int DocumentId // Document ID property
     {
         get => _documentId;
         set
@@ -73,19 +73,19 @@ public partial class ReaderPage : ContentPage
             else
             {
                 _isNewDocument = false;
-                _loadDocumentTask = LoadDocumentAsync(_documentId); // start async load
+                _loadDocumentTask = LoadDocumentAsync(_documentId);
             }
         }
     }
 
-    public ReaderPage(DatabaseService db)
+    public ReaderPage(DatabaseService db) // Database service injected
     {
         InitializeComponent();
         _db = db;
         BindingContext = this;
     }
 
-    private async Task LoadDocumentAsync(int id)
+    private async Task LoadDocumentAsync(int id) // Load document from database
     {
         CurrentDocument = await _db.GetDocumentByIdAsync(id);
         if (CurrentDocument != null)
@@ -94,7 +94,7 @@ public partial class ReaderPage : ContentPage
             Title = CurrentDocument.Name;
             SetEditMode(false);
             await PaginateAsync(_fullText);
-            _pendingVoiceLocale = CurrentDocument.VoiceLocale; // remember for later application
+            _pendingVoiceLocale = CurrentDocument.VoiceLocale;
             
 #if DEBUG
             System.Diagnostics.Debug.WriteLine($"Loaded document: {CurrentDocument.Name}, LastPageIndex: {CurrentDocument.LastPageIndex}");
@@ -104,20 +104,16 @@ public partial class ReaderPage : ContentPage
         }
     }
 
-    protected override async void OnAppearing()
+    protected override async void OnAppearing() // On entering page
     {
         base.OnAppearing();
         systemLocales = (await TextToSpeech.Default.GetLocalesAsync()).ToList();
         filteredLocales = systemLocales.OrderBy(l => l.Language + l.Name + l.Country).ToList();
         VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
-
-        // Ensure document load completes (if started) before applying saved voice and page
         if (_loadDocumentTask != null)
         {
-            try { await _loadDocumentTask; } catch { /* ignore load errors here */ }
+            try { await _loadDocumentTask; } catch { /* Nothing happens */ }
         }
-
-        // Apply saved voice if available
         if (_pendingVoiceLocale != null)
         {
             ApplySavedVoiceLocale();
@@ -132,23 +128,21 @@ public partial class ReaderPage : ContentPage
         if (StartInEdit && !_isEditing) SetEditMode(true);
     }
 
-    protected override async void OnDisappearing()
+    protected override async void OnDisappearing() // On leaving page
     {
         base.OnDisappearing();
-        // Stop any active or paused playback
         ttsCancel?.Cancel();
         _isPlaying = false;
         _isPaused = false;
-        _isRepeating = false; // Stop repeating when leaving page
+        _isRepeating = false;
         
-        // Save current page when leaving the reader
         if (CurrentDocument != null && !_isNewDocument)
         {
             await SaveCurrentPageAsync();
         }
     }
 
-    private void ApplySavedVoiceLocale()
+    private void ApplySavedVoiceLocale() // Select saved voice in picker
     {
         string? target = _pendingVoiceLocale ?? CurrentDocument?.VoiceLocale;
         if (string.IsNullOrWhiteSpace(target)) return;
@@ -157,11 +151,11 @@ public partial class ReaderPage : ContentPage
         {
             VoicePicker.SelectedIndex = idx;
             selectedLocale = filteredLocales[idx];
-            _pendingVoiceLocale = null; // applied
+            _pendingVoiceLocale = null;
         }
     }
 
-    private Task PaginateAsync(string text)
+    private Task PaginateAsync(string text) // Split text into pages and phrases
     {
         _pages.Clear();
         _pagePhrases.Clear();
@@ -185,14 +179,13 @@ public partial class ReaderPage : ContentPage
         }
         _currentPageIndex = Math.Min(_currentPageIndex, _pages.Count - 1);
         
-        // Restore saved page BEFORE calling UpdatePageDisplay to avoid saving during restoration
         RestoreSavedPageIfAny();
         
         UpdatePageDisplay();
         return Task.CompletedTask;
     }
 
-    private List<PhraseViewModel> CreatePhrasesFromText(string text)
+    private List<PhraseViewModel> CreatePhrasesFromText(string text) // Split text into phrases
     {
         var list = new List<PhraseViewModel>();
         if (string.IsNullOrWhiteSpace(text)) return list;
@@ -203,7 +196,6 @@ public partial class ReaderPage : ContentPage
             if (!string.IsNullOrEmpty(t)) 
             {
                 var phrase = new PhraseViewModel { Text = t };
-                // Set initial color based on current theme
                 phrase.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
                 list.Add(phrase);
             }
@@ -217,7 +209,7 @@ public partial class ReaderPage : ContentPage
         return list;
     }
 
-    private void UpdatePageDisplay()
+    private void UpdatePageDisplay() // Update UI for current page
     {
         if (_currentPageIndex < 0 || _currentPageIndex >= _pages.Count) return;
         CurrentPagePhrases.Clear();
@@ -228,12 +220,11 @@ public partial class ReaderPage : ContentPage
         NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1 && !_isPlaying;
         ScrollToTop();
 
-        // Save current page when it changes
         if (!_suppressPageSave)
             _ = SaveCurrentPageAsync();
     }
 
-    private void RenderPhrases()
+    private void RenderPhrases() // Render phrases in the UI
     {
         PhraseStack.Children.Clear();
         for (int i = 0; i < CurrentPagePhrases.Count; i++)
@@ -248,16 +239,14 @@ public partial class ReaderPage : ContentPage
                 LineBreakMode = LineBreakMode.WordWrap
             };
             
-            // Set theme-appropriate text color
             lbl.SetAppThemeColor(Label.TextColorProperty, Colors.Black, Colors.White);
             
             int capture = i;
             var tap = new TapGestureRecognizer();
             tap.Tapped += async (s, e) =>
             {
-                // User explicitly selected a phrase; override any paused resume position
                 _userSelected = true;
-                _isPaused = false; // prevent PlayFromAsync from using resume indices
+                _isPaused = false; 
                 _selectedStartPage = _currentPageIndex;
                 _selectedStartPhrase = capture;
                 await PlayFromAsync(_currentPageIndex, capture);
@@ -272,15 +261,15 @@ public partial class ReaderPage : ContentPage
         }
     }
 
-    private void ScrollToTop() => PhraseScrollView.ScrollToAsync(0, 0, false);
-    private void ScrollToPhrase(int phraseIndex)
+    private void ScrollToTop() => PhraseScrollView.ScrollToAsync(0, 0, false); // Scroll to top of phrases
+    private void ScrollToPhrase(int phraseIndex) // Scroll to make phrase visible
     {
         if (phraseIndex < 0 || phraseIndex >= PhraseStack.Children.Count) return;
         if (PhraseStack.Children[phraseIndex] is VisualElement ve)
             PhraseScrollView.ScrollToAsync(ve, ScrollToPosition.Center, true);
     }
 
-    private async Task PlayFromAsync(int startPage, int startPhrase)
+    private async Task PlayFromAsync(int startPage, int startPhrase) // Play from specified page and phrase
     {
         if (selectedLocale == null)
         {
@@ -288,7 +277,6 @@ public partial class ReaderPage : ContentPage
             return;
         }
         if (_pages.Count == 0) return;
-        // Only apply resume indices if paused AND user did not tap a new phrase
         if (_isPaused && !_userSelected)
         {
             startPage = _resumePageIndex;
@@ -299,7 +287,7 @@ public partial class ReaderPage : ContentPage
         ttsCancel = new CancellationTokenSource();
         var token = ttsCancel.Token;
         _isPlaying = true;
-        _completedDocument = false; // starting new playback
+        _completedDocument = false;
         try
         {
             do
@@ -319,7 +307,6 @@ public partial class ReaderPage : ContentPage
                         DimPhrase(i);
                     }
                 }
-                // Successful completion reached end of document
                 if (!_isPaused && !_userSelected)
                 {
                     _completedDocument = true;
@@ -327,12 +314,11 @@ public partial class ReaderPage : ContentPage
                     _lastPhraseIndex = _currentPhraseIndex;
                 }
                 
-                // If repeating, reset to beginning
                 if (_isRepeating && !token.IsCancellationRequested)
                 {
                     startPage = 0;
                     startPhrase = 0;
-                    await Task.Delay(500, token); // Small delay before repeating
+                    await Task.Delay(500, token);
                 }
             } 
             while (_isRepeating && !token.IsCancellationRequested);
@@ -348,7 +334,7 @@ public partial class ReaderPage : ContentPage
             {
                 ResetHighlighting();
             }
-            _completedDocument = false; // cancellation means no completion
+            _completedDocument = false;
         }
         finally
         {
@@ -360,7 +346,7 @@ public partial class ReaderPage : ContentPage
             }
             PreviousPageButton.IsEnabled = _currentPageIndex > 0;
             NextPageButton.IsEnabled = _currentPageIndex < _pages.Count - 1;
-            _userSelected = false; // consume user selection after run
+            _userSelected = false;
         }
     }
 
@@ -372,38 +358,35 @@ public partial class ReaderPage : ContentPage
             if (i == index)
             {
                 vm.BackgroundColor = Colors.Yellow;
-                vm.TextColor = Colors.Black; // Always black on yellow for readability
+                vm.TextColor = Colors.Black;
             }
             else if (vm.BackgroundColor == Colors.Transparent)
             {
-                // Use theme-appropriate text color
                 vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
             }
         }
     }
     
-    private void DimPhrase(int index)
+    private void DimPhrase(int index) // Dim phrase after spoken
     {
         if (index >= 0 && index < CurrentPagePhrases.Count)
         {
             var vm = CurrentPagePhrases[index];
             vm.BackgroundColor = Colors.Transparent;
-            // Use theme-appropriate dimmed color
             vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.LightGray : Colors.Gray;
         }
     }
     
-    private void ResetHighlighting()
+    private void ResetHighlighting() // Clear all highlights and restore normal text color
     {
         foreach (var vm in CurrentPagePhrases)
         {
             vm.BackgroundColor = Colors.Transparent;
-            // Use theme-appropriate text color
             vm.TextColor = Application.Current.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black;
         }
     }
 
-    private void OnPreviousPageClicked(object sender, EventArgs e)
+    private void OnPreviousPageClicked(object sender, EventArgs e) // Previous page
     {
         if (_isPlaying) return;
         if (_currentPageIndex > 0)
@@ -413,7 +396,7 @@ public partial class ReaderPage : ContentPage
         }
     }
     
-    private void OnNextPageClicked(object sender, EventArgs e)
+    private void OnNextPageClicked(object sender, EventArgs e) // Next page
     {
         if (_isPlaying) return;
         if (_currentPageIndex < _pages.Count - 1)
@@ -423,7 +406,7 @@ public partial class ReaderPage : ContentPage
         }
     }
 
-    private void SetEditMode(bool editing)
+    private void SetEditMode(bool editing) // Switch between edit and read modes
     {
         if (_isEditing && !editing)
         {
@@ -447,10 +430,10 @@ public partial class ReaderPage : ContentPage
         }
     }
     
-    private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true);
-    private void OnSaveDocumentClicked(object sender, EventArgs e) => SetEditMode(false);
+    private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true); // Switch to edit mode
+    private void OnSaveDocumentClicked(object sender, EventArgs e) => SetEditMode(false); // Save handled in SetEditMode
 
-    private void OnVoicePickerFocused(object sender, FocusEventArgs e)
+    private void OnVoicePickerFocused(object sender, FocusEventArgs e) // Reset filter when focusing
     {
         if (string.IsNullOrWhiteSpace(pendingSearchText))
         {
@@ -459,7 +442,7 @@ public partial class ReaderPage : ContentPage
         }
     }
     
-    private void OnVoiceChanged(object sender, EventArgs e)
+    private void OnVoiceChanged(object sender, EventArgs e) // Save selected voice
     {
         if (VoicePicker.SelectedIndex >= 0)
         {
@@ -468,7 +451,7 @@ public partial class ReaderPage : ContentPage
         }
     }
     
-    private async Task SaveVoiceSelectionAsync()
+    private async Task SaveVoiceSelectionAsync() // Save selected voice to document
     {
         if (CurrentDocument != null && selectedLocale != null)
         {
@@ -477,9 +460,9 @@ public partial class ReaderPage : ContentPage
         }
     }
     
-    private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e) => pendingSearchText = e.NewTextValue ?? string.Empty;
-    
-    private void OnVoiceSearchButtonPressed(object sender, EventArgs e)
+    private void OnVoiceSearchTextChanged(object sender, TextChangedEventArgs e) => pendingSearchText = e.NewTextValue ?? string.Empty; // Update pending search text
+
+    private void OnVoiceSearchButtonPressed(object sender, EventArgs e) // Apply search filter
     {
         var search = pendingSearchText.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(search))
@@ -489,7 +472,7 @@ public partial class ReaderPage : ContentPage
         VoicePicker.ItemsSource = filteredLocales.Select(l => $"{l.Language} - {l.Name} ({l.Country})").ToList();
     }
 
-    private async void OnPlayClicked(object sender, EventArgs e)
+    private async void OnPlayClicked(object sender, EventArgs e) // Start or resume playback
     {
         if (_isPlaying) return;
         if (_isPaused)
@@ -536,32 +519,28 @@ public partial class ReaderPage : ContentPage
     {
         if (!_isPlaying) return;
         _isPaused = true;
-        _isRepeating = false; // Stop repeating when paused
-        RepeatButton.BackgroundColor = Color.FromArgb("#3f8cff"); // Reset repeat button color
+        _isRepeating = false;
+        RepeatButton.BackgroundColor = Color.FromArgb("#3f8cff");
         ttsCancel?.Cancel();
     }
 
-    private async void OnRepeatClicked(object sender, EventArgs e)
+    private async void OnRepeatClicked(object sender, EventArgs e) // Toggle repeat mode
     {
         _isRepeating = !_isRepeating;
         
-        // Update button appearance
         RepeatButton.BackgroundColor = _isRepeating ? Colors.Green : Color.FromArgb("#3f8cff");
         
         if (_isRepeating && !_isPlaying)
         {
-            // Start playing immediately if not already playing
             OnPlayClicked(sender, e);
         }
         else if (!_isRepeating)
         {
-            // If turning off repeat while playing, just change the flag
-            // The loop will stop after current cycle
+            // Nothing to do here, playback continues until end or paused
         }
     }
 
-    // Helper methods for page saving and restoration
-    private async Task SaveCurrentPageAsync()
+    private async Task SaveCurrentPageAsync() // Save current page index to document
     {
         if (CurrentDocument == null || _suppressPageSave || _isNewDocument) return;
         
@@ -585,7 +564,7 @@ public partial class ReaderPage : ContentPage
         }
     }
 
-    private void RestoreSavedPageIfAny()
+    private void RestoreSavedPageIfAny() // Call before UpdatePageDisplay
     {
         if (CurrentDocument?.LastPageIndex is int idx &&
             idx >= 0 && idx < _pages.Count)
@@ -595,12 +574,11 @@ public partial class ReaderPage : ContentPage
 #if DEBUG
             System.Diagnostics.Debug.WriteLine($"Restored last page: {idx + 1} for document: {CurrentDocument.Name}");
 #endif
-            // Note: Don't call UpdatePageDisplay here as it will be called after this method
             _suppressPageSave = false;
         }
     }
 
-    private async void OnJumpToPageClicked(object sender, EventArgs e)
+    private async void OnJumpToPageClicked(object sender, EventArgs e) // Prompt for page number
     {
         if (_pages.Count <= 1) return;
         var input = await DisplayPromptAsync("Jump To Page", $"Enter page number (1 - {_pages.Count})", "Go", "Cancel", keyboard: Keyboard.Numeric);

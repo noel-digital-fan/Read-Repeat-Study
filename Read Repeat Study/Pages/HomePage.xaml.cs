@@ -22,7 +22,7 @@ namespace Read_Repeat_Study.Pages
         private bool _isProcessingThemeToggle = false; // prevents recursion when reverting switch
         private bool _currentIsLight = true; // tracks accepted theme state
 
-        public HomePage(DatabaseService db)
+        public HomePage(DatabaseService db) // Dependency Injection of DatabaseService
         {
             InitializeComponent();
             _db = db;
@@ -34,16 +34,16 @@ namespace Read_Repeat_Study.Pages
             InitializeThemeSwitch();
         }
 
-        private void InitializeThemeSwitch()
+        private void InitializeThemeSwitch() // Set initial theme switch state
         {
             var currentTheme = Application.Current?.RequestedTheme ?? AppTheme.Light;
             _currentIsLight = currentTheme == AppTheme.Light;
-            ThemeSwitch.IsToggled = _currentIsLight; // initial without triggering extra work
+            ThemeSwitch.IsToggled = _currentIsLight;
             DarkDayModeImageSwitch.Source = _currentIsLight ? "daymode.png" : "darkmode.png";
             UpdateThemeContainer(_currentIsLight);
         }
 
-        private void UpdateThemeContainer(bool isLightMode)
+        private void UpdateThemeContainer(bool isLightMode) // Update container colors based on theme
         {
             if (isLightMode)
             {
@@ -57,24 +57,22 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        private void OnThemeToggled(object sender, ToggledEventArgs e)
+        [Obsolete]
+        private void OnThemeToggled(object sender, ToggledEventArgs e) // Handle theme toggle with cooldown
         {
-            if (_isProcessingThemeToggle) return; // ignore internal changes
+            if (_isProcessingThemeToggle) return;
 
             bool requestedIsLight = e.Value;
             var now = DateTime.UtcNow;
 
-            // Enforce 2s cooldown
-            if (now - _lastThemeToggle < TimeSpan.FromSeconds(2))
+            if (now - _lastThemeToggle < TimeSpan.FromSeconds(2)) // 2-second cooldown
             {
-                // Revert visual switch to previously accepted state silently
                 _isProcessingThemeToggle = true;
                 ThemeSwitch.IsToggled = _currentIsLight;
                 _isProcessingThemeToggle = false;
-                return; // ignore rapid toggle
+                return;
             }
 
-            // Accept new state
             _lastThemeToggle = now;
             _currentIsLight = requestedIsLight;
 
@@ -84,7 +82,7 @@ namespace Read_Repeat_Study.Pages
             Preferences.Set("app_theme", Application.Current.UserAppTheme.ToString());
             UpdateThemeContainer(requestedIsLight);
 
-            Device.BeginInvokeOnMainThread(async () =>
+            Device.BeginInvokeOnMainThread(async () => // Slight delay to ensure UI updates
             {
                 await Task.Delay(100);
                 await LoadDocumentsAsync();
@@ -92,7 +90,7 @@ namespace Read_Repeat_Study.Pages
             });
         }
 
-        async Task<string> ExtractTextFromPdfAsync(FileResult file)
+        async Task<string> ExtractTextFromPdfAsync(FileResult file) // Extract text from PDF using PdfPig
         {
             using var stream = await file.OpenReadAsync();
             using var pdf = PdfDocument.Open(stream);
@@ -102,7 +100,7 @@ namespace Read_Repeat_Study.Pages
             return textBuilder.ToString();
         }
 
-        string HtmlToPlainText(string html)
+        string HtmlToPlainText(string html) // Convert HTML content to plain text
         {
             return Regex.Replace(html, "<.*?>", string.Empty)
                         .Replace("&nbsp;", " ")
@@ -111,7 +109,7 @@ namespace Read_Repeat_Study.Pages
                         .Replace("&gt;", ">");
         }
 
-        protected override async void OnAppearing()
+        protected override async void OnAppearing() // Load documents when page appears
         {
             base.OnAppearing();
             await LoadDocumentsAsync();
@@ -133,7 +131,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        void HideSelectionBar()
+        void HideSelectionBar() // Clear selection and hide toolbar
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
@@ -143,13 +141,13 @@ namespace Read_Repeat_Study.Pages
         }
 
 
-        private void OnBlockerTapped(object sender, EventArgs e)
+        private void OnBlockerTapped(object sender, EventArgs e) // Tap on blocker also cancels selection
         {
             HideSelectionBar();
             InputBlocker.IsVisible = false;
         }
 
-        void OnDocumentLongPressed(ImportedDocument doc)
+        void OnDocumentLongPressed(ImportedDocument doc) // Long-press to enter selection mode
         {
             if (!ActionButtonsContainer.IsVisible)
                 ShowActionButtons();
@@ -162,7 +160,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) // Sync selection state
         {
             foreach (var doc in Documents)
                 doc.IsSelected = false;
@@ -175,7 +173,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        void OnDocumentTapped(object sender, EventArgs e)
+        void OnDocumentTapped(object sender, EventArgs e) // Tap to open or select
         {
             var doc = (sender as VisualElement)?.BindingContext as ImportedDocument;
             if (doc == null) return;
@@ -202,8 +200,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        // Take Actions button handler (bulk operations)
-        async void OnTakeActionsClicked(object sender, EventArgs e)
+        async void OnTakeActionsClicked(object sender, EventArgs e) // Show action sheet for bulk actions
         {
             var action = await DisplayActionSheet("Take Actions", "Cancel", null,
                 "Add/Change Flag", "Remove Flag", "Delete");
@@ -219,11 +216,10 @@ namespace Read_Repeat_Study.Pages
                     await BulkDeleteAsync();
                     break;
             }
-            // After action, clear selection
-            OnCancelSelectionClicked(this, EventArgs.Empty);
+            OnCancelSelectionClicked(this, EventArgs.Empty); // Clear selection after action
         }
 
-        void OnCancelSelectionClicked(object sender, EventArgs e)
+        void OnCancelSelectionClicked(object sender, EventArgs e) // Cancel selection mode
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
@@ -232,8 +228,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        // Select All button handler
-        void OnSelectAllClicked(object sender, EventArgs e)
+        void OnSelectAllClicked(object sender, EventArgs e) // Select all documents
         {
             foreach (var doc in Documents)
             {
@@ -245,7 +240,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async Task BulkAddFlagAsync()
+        async Task BulkAddFlagAsync() // Bulk add/change flag for selected documents
         {
             var flag = await SelectFlagAsync();
             if (flag == null) return;
@@ -258,7 +253,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async Task BulkRemoveFlagAsync()
+        async Task BulkRemoveFlagAsync() // Bulk remove flag from selected documents
         {
             foreach (var doc in selectedDocuments)
             {
@@ -269,7 +264,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async Task BulkDeleteAsync()
+        async Task BulkDeleteAsync() // Bulk delete selected documents with confirmation
         {
             if (await DisplayAlert("Confirm Delete",
                 $"Delete {selectedDocuments.Count} document(s)?", "Yes", "No"))
@@ -282,7 +277,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        void UpdateFlagColors()
+        void UpdateFlagColors() // Refresh flag colors in the UI
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -292,7 +287,7 @@ namespace Read_Repeat_Study.Pages
             });
         }
 
-        async Task<Flags> SelectFlagAsync()
+        async Task<Flags> SelectFlagAsync() // Prompt user to select a flag
         {
             var flags = await _db.GetAllFlagsAsync();
             if (!flags.Any() && await DisplayAlert("No Flags", "No flags exist. Create one?", "Yes", "No"))
@@ -305,7 +300,7 @@ namespace Read_Repeat_Study.Pages
             return flags.FirstOrDefault(f => f.Name == choice);
         }
 
-        async void OnImportFilesClicked(object sender, EventArgs e)
+        async void OnImportFilesClicked(object sender, EventArgs e) // Import multiple files
         {
             try
             {
@@ -334,7 +329,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files)
+        async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files) // Import and process selected files
         {
             var allowedExtensions = new[] { ".txt", ".docx", ".epub", ".pdf" };
             var supportedFiles = files
@@ -390,16 +385,11 @@ namespace Read_Repeat_Study.Pages
                             foreach (var chapter in epubBook.ReadingOrder)
                             {
                                 string html = chapter.Content;
-                                // 1. Remove <style> blocks (and their contents)
-                                html = Regex.Replace(html, "<style[\\s\\S]*?>[\\s\\S]*?<\\/style>", string.Empty, RegexOptions.IgnoreCase);
-                                // 2. Remove <header>, <footer>, <nav> and their contents
-                                html = Regex.Replace(html, "<(header|footer|nav)[\\s\\S]*?>[\\s\\S]*?<\\/(header|footer|nav)>", string.Empty, RegexOptions.IgnoreCase);
-                                // 3. Now strip all remaining tags and HTML entities
-                                string plainText = HtmlToPlainText(html);
+                                html = Regex.Replace(html, "<style[\\s\\S]*?>[\\s\\S]*?<\\/style>", string.Empty, RegexOptions.IgnoreCase); // 1. Remove <style> tags and their contents
+                                html = Regex.Replace(html, "<(header|footer|nav)[\\s\\S]*?>[\\s\\S]*?<\\/(header|footer|nav)>", string.Empty, RegexOptions.IgnoreCase); // 2. Remove <header>, <footer>, and <nav> tags and their contents
+                                string plainText = HtmlToPlainText(html); // 3. Convert remaining HTML to plain text
                                 builder.AppendLine(plainText);
                             }
-
-
                             content = builder.ToString();
                             break;
                     }
@@ -429,9 +419,9 @@ namespace Read_Repeat_Study.Pages
 
 
 
-        private async Task LoadDocumentsAsync()
+        private async Task LoadDocumentsAsync() // Load documents from database
         {
-            Documents.Clear(); // Clear the collection before loading to avoid duplicates
+            Documents.Clear();
 
             var docs = await _db.GetAllDocumentsAsync();
             foreach (var d in docs.OrderByDescending(d => d.ImportedDate))
@@ -442,10 +432,10 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async void OnCreateDocumentClicked(object sender, EventArgs e)
+        async void OnCreateDocumentClicked(object sender, EventArgs e) // Create new blank document
             => await Shell.Current.GoToAsync("ReaderPage?docId=-1");
 
-        private void OnDocumentFrameLoaded(object sender, EventArgs e)
+        private void OnDocumentFrameLoaded(object sender, EventArgs e) // Set flag color box when frame loads
         {
             if (sender is Microsoft.Maui.Controls.Frame frame && frame.BindingContext is ImportedDocument document)
             {
@@ -471,7 +461,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        private async void OnBulkAddFlagClicked(object sender, EventArgs e)
+        private async void OnBulkAddFlagClicked(object sender, EventArgs e) // Bulk add/change flag
         {
             if (!selectedDocuments.Any())
             {
@@ -493,7 +483,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        private async void OnBulkDeleteClicked(object sender, EventArgs e)
+        private async void OnBulkDeleteClicked(object sender, EventArgs e) // Bulk delete with confirmation
         {
             if (!selectedDocuments.Any())
             {
@@ -517,7 +507,7 @@ namespace Read_Repeat_Study.Pages
             TakeActionsButton.IsVisible = false;
         }
 
-        protected override async void OnDisappearing()
+        protected override async void OnDisappearing() // On page disappear, cancel selection
         {
             base.OnDisappearing();
             // Cancel selection automatically when leaving the page
@@ -537,9 +527,7 @@ namespace Read_Repeat_Study.Pages
                 DisplayAlert("No Selection", "Please select a document to edit.", "OK");
             }
         }
-
-        // Add this helper method:
-        void UpdateEditButtonVisibility()
+        void UpdateEditButtonVisibility() // Show edit button only if one document is selected
         {
             EditDocumentButton.IsVisible = selectedDocuments.Count == 1;
         }

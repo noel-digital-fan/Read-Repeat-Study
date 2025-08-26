@@ -7,18 +7,17 @@ namespace Read_Repeat_Study.Pages
     [QueryProperty(nameof(FlagId), "flagId")]
     public partial class AddEditFlagPage : ContentPage
     {
-        public string FlagId { get; set; }
-        private readonly DatabaseService _db;
-        private Flags _flag;
+        public string FlagId { get; set; } // Bound query property for flag ID
+        private readonly DatabaseService _db; // Injected database service
+        private Flags _flag; // The flag being added/edited
 
-        public ICommand SetBaseColorCommand { get; private set; }
+        public ICommand SetBaseColorCommand { get; private set; } // Command to set base colors
 
-        public AddEditFlagPage(DatabaseService db)
+        public AddEditFlagPage(DatabaseService db) // Dependency Injection
         {
             InitializeComponent();
             _db = db;
 
-            // Swatch command
             SetBaseColorCommand = new Command<string>(colorName =>
             {
                 Color c = colorName switch
@@ -32,8 +31,6 @@ namespace Read_Repeat_Study.Pages
                 };
                 ApplyColor(c);
             });
-
-            // Slider change handlers
             RedSlider.ValueChanged += OnRgbChanged;
             GreenSlider.ValueChanged += OnRgbChanged;
             BlueSlider.ValueChanged += OnRgbChanged;
@@ -41,7 +38,7 @@ namespace Read_Repeat_Study.Pages
             BindingContext = this;
         }
 
-        protected override async void OnAppearing()
+        protected override async void OnAppearing() // On loading the page
         {
             base.OnAppearing();
 
@@ -65,7 +62,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        void OnRgbChanged(object sender, ValueChangedEventArgs e)
+        void OnRgbChanged(object sender, ValueChangedEventArgs e) // When any RGB slider changes
         {
             var c = new Color(
                 (float)(RedSlider.Value / 255.0),
@@ -74,16 +71,15 @@ namespace Read_Repeat_Study.Pages
             ApplyColor(c);
         }
 
-        void ApplyColor(Color c)
+        void ApplyColor(Color c) // Apply a color to the preview and sliders
         {
-            // Update sliders & preview
             RedSlider.Value = c.Red * 255;
             GreenSlider.Value = c.Green * 255;
             BlueSlider.Value = c.Blue * 255;
             ColorPreview.BackgroundColor = c;
         }
 
-        private async void OnSaveClicked(object sender, EventArgs e)
+        private async void OnSaveClicked(object sender, EventArgs e) // Save button clicked
         {
             _flag.Name = NameEntry.Text?.Trim();
             _flag.Color = ColorPreview.BackgroundColor.ToHex();

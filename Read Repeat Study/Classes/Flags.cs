@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel;
 using SQLite;
 
-public class Flags : INotifyPropertyChanged
+public class Flags : INotifyPropertyChanged // Represents a flag with ID, Name, Color, and selection state
 {
     [PrimaryKey, AutoIncrement]
     public int ID { get; set; }
@@ -11,8 +11,8 @@ public class Flags : INotifyPropertyChanged
 
     private bool isSelected;
 
-    [Ignore]  // Only on the property, NOT on the field
-    public bool IsSelected
+    [Ignore] 
+    public bool IsSelected // Indicates whether the flag is selected
     {
         get => isSelected;
         set
@@ -25,5 +25,5 @@ public class Flags : INotifyPropertyChanged
         }
     }
 
-    public event PropertyChangedEventHandler PropertyChanged;
+    public event PropertyChangedEventHandler PropertyChanged; // Event for property change notifications
 }

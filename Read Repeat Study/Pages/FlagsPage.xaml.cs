@@ -9,17 +9,17 @@ namespace Read_Repeat_Study.Pages
 {
     public partial class FlagsPage : ContentPage
     {
-        readonly DatabaseService _db;
-        readonly ObservableCollection<Flags> selectedFlags = new();
+        readonly DatabaseService _db; // Injected database service
+        readonly ObservableCollection<Flags> selectedFlags = new(); // Currently selected flags
 
-        public ObservableCollection<Flags> FlagsCollectionItems { get; } = new();
-        public ICommand FlagLongPressedCommand { get; }
-        public ICommand FlagTappedCommand { get; }
+        public ObservableCollection<Flags> FlagsCollectionItems { get; } = new(); // All flags for display
+        public ICommand FlagLongPressedCommand { get; } // Long-press command
+        public ICommand FlagTappedCommand { get; } // Tap command
 
-        bool MultiSelectMode => SelectionBar.IsVisible;
-        bool ignoreNextTapAfterLongPress;
+        bool MultiSelectMode => SelectionBar.IsVisible; // Are we in multi-select mode?
+        bool ignoreNextTapAfterLongPress; // To avoid tap after long-press
 
-        public FlagsPage(DatabaseService db)
+        public FlagsPage(DatabaseService db) // Dependency Injection
         {
             InitializeComponent();
             _db = db;
@@ -30,7 +30,7 @@ namespace Read_Repeat_Study.Pages
             BindingContext = this;
         }
 
-        protected override async void OnAppearing()
+        protected override async void OnAppearing() // On page appear, load flags
         {
             base.OnAppearing();
 
@@ -47,8 +47,7 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        // Long-press: enter multi-select and select item
-        void OnFlagLongPressed(int flagId)
+        void OnFlagLongPressed(int flagId) // Long-press: enter multi-select and select
         {
             var flag = FlagsCollectionItems.FirstOrDefault(f => f.ID == flagId);
             if (flag == null) return;
@@ -56,7 +55,7 @@ namespace Read_Repeat_Study.Pages
             if (!MultiSelectMode)
             {
                 SelectionBar.IsVisible = true;
-                InputBlocker.IsVisible = true; // Show blocker behind
+                InputBlocker.IsVisible = true;
             }
 
             if (!flag.IsSelected)
@@ -70,8 +69,7 @@ namespace Read_Repeat_Study.Pages
         }
 
 
-        // Tap: if in multi-select, toggle selection; else navigate
-        void OnFlagTapped(int flagId)
+        void OnFlagTapped(int flagId) // Tap: select/deselect in multi-select, or edit in single-select
         {
             var flag = FlagsCollectionItems.FirstOrDefault(f => f.ID == flagId);
             if (flag == null) return;
@@ -97,24 +95,74 @@ namespace Read_Repeat_Study.Pages
             }
             else
             {
-                // Single-tap ? edit
                 _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={flag.ID}");
             }
         }
 
-        // Add Flag button
-        async void OnAddFlagClicked(object sender, EventArgs e)
+        async void OnAddFlagClicked(object sender, EventArgs e) // Add new flag
             => await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
 
-        // Edit selected (only one)
-        void OnEditSelected(object sender, EventArgs e)
+        void OnEditSelected(object sender, EventArgs e) // Edit selected (only if one)
+        {
+            if (selectedFlags.Count == 1)
+                _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={selectedFlags[0].ID}");
+
+            async void OnDeleteSelected(object sender, EventArgs e) // Delete selected (one or more)
+            {
+                if (!selectedFlags.Any()) return;
+
+                bool ok = await DisplayAlert(
+                    "Confirm Delete",
+                    $"Delete {selectedFlags.Count} flag(s)?",
+                    "Yes", "No");
+                if (!ok) return;
+
+                foreach (var f in selectedFlags.ToList())
+                {
+                    await _db.DeleteFlagAsync(f);
+                    FlagsCollectionItems.Remove(f);
+                }
+
+                HideSelectionBar();
+            }
+
+            void OnSelectAll(object sender, EventArgs e) // Select all flags
+            {
+                foreach (var f in FlagsCollectionItems)
+                {
+                    if (!f.IsSelected)
+                    {
+                        f.IsSelected = true;
+                        selectedFlags.Add(f);
+                    }
+                }
+                UpdateActionButtons();
+            }
+
+            void OnCancelSelection(object sender, EventArgs e) // Cancel selection
+                => HideSelectionBar();
+
+            void HideSelectionBar() // Hide selection bar and clear selections
+            {
+                foreach (var f in selectedFlags)
+                    f.IsSelected = false;
+
+                selectedFlags.Clear();
+                SelectionBar.IsVisible = false;
+                InputBlocker.IsVisible = false;
+                UpdateActionButtons();
+            }
+        }
+
+        // Move HideSelectionBar and related methods out of OnEditSelected to be at the class level
+
+        void OnEditSelection(object sender, EventArgs e) // Edit selected (only if one)
         {
             if (selectedFlags.Count == 1)
                 _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={selectedFlags[0].ID}");
         }
 
-        // Delete selected (one or many)
-        async void OnDeleteSelected(object sender, EventArgs e)
+        async void OnDeleteSelected(object sender, EventArgs e) // Delete selected (one or more)
         {
             if (!selectedFlags.Any()) return;
 
@@ -133,8 +181,7 @@ namespace Read_Repeat_Study.Pages
             HideSelectionBar();
         }
 
-        // Select all
-        void OnSelectAll(object sender, EventArgs e)
+        void OnSelectAll(object sender, EventArgs e) // Select all flags
         {
             foreach (var f in FlagsCollectionItems)
             {
@@ -147,12 +194,16 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        // Cancel selection
-        void OnCancelSelection(object sender, EventArgs e)
+        void OnCancelSelection(object sender, EventArgs e) // Cancel selection
             => HideSelectionBar();
 
-        // Helper to hide toolbar and clear selections
-        void HideSelectionBar()
+        private void OnBlockerTapped(object sender, TappedEventArgs e) // Tap on blocker also cancels selection
+        {
+            HideSelectionBar();
+            InputBlocker.IsVisible = false;
+        }
+
+        void HideSelectionBar() // Hide selection bar and clear selections
         {
             foreach (var f in selectedFlags)
                 f.IsSelected = false;
@@ -163,21 +214,13 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        private void OnBlockerTapped(object sender, TappedEventArgs e)
-        {
-            HideSelectionBar();
-            InputBlocker.IsVisible = false;
-        }
-
-
-        // Update button visibility in toolbar
-        void UpdateActionButtons()
+        void UpdateActionButtons() // Update action buttons based on selection
         {
             EditButton.IsVisible = selectedFlags.Count == 1;
             DeleteButton.IsVisible = selectedFlags.Count > 0;
         }
 
-        protected override void OnDisappearing()
+        protected override void OnDisappearing() // On page disappear, hide selection bar
         {
             base.OnDisappearing();
             HideSelectionBar();
