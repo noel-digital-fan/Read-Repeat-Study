@@ -296,7 +296,7 @@ public partial class ReaderPage : ContentPage
                     startPage = 0;
                     startPhrase = 0;
                 }
-                
+
                 for (int p = startPage; p < _pages.Count; p++)
                 {
                     _currentPageIndex = p;
@@ -431,6 +431,7 @@ public partial class ReaderPage : ContentPage
     }
 
     private void OnEditDocumentClicked(object sender, EventArgs e) => SetEditMode(true); // Switch to edit mode
+
     private async void OnSaveDocumentClicked(object sender, EventArgs e) // Save and exit edit mode
     {
         _fullText = PageContentEditor.Text ?? string.Empty;
@@ -448,8 +449,21 @@ public partial class ReaderPage : ContentPage
         {
             if (_isNewDocument)
             {
+                string documentName = await DisplayPromptAsync(
+                    "Save Document",
+                    "Enter a name for your document:",
+                    "Save",
+                    "Cancel",
+                    "Enter document name here...",
+                    -1,
+                    Keyboard.Text,
+                    CurrentDocument.Name == "Untitled" ? "" : CurrentDocument.Name);
+
+                if (string.IsNullOrWhiteSpace(documentName))
+                    return;
+
                 CurrentDocument.Content = _fullText;
-                CurrentDocument.Name = CurrentDocument.Name ?? "Untitled";
+                CurrentDocument.Name = documentName.Trim();
                 await _db.SaveDocumentAsync(CurrentDocument);
                 _isNewDocument = false;
                 Title = CurrentDocument.Name;
@@ -678,16 +692,16 @@ public partial class ReaderPage : ContentPage
     {
         _isRepeating = !_isRepeating;
         RepeatButton.BackgroundColor = _isRepeating ? Colors.Green : Color.FromArgb("#3f8cff");
-        
+
         if (_isRepeating)
         {
             _completedDocument = false;
             _userSelected = false;
-            
+
             if (_isPlaying)
             {
                 ttsCancel?.Cancel();
-                MainThread.BeginInvokeOnMainThread(async () => 
+                MainThread.BeginInvokeOnMainThread(async () =>
                 {
                     await Task.Delay(100);
                     if (!_isPlaying)

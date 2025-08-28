@@ -1,9 +1,6 @@
 using Read_Repeat_Study.Services;
-using System;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Windows.Input;
-using Microsoft.Maui.Controls;
 
 namespace Read_Repeat_Study.Pages
 {
@@ -19,6 +16,8 @@ namespace Read_Repeat_Study.Pages
         bool MultiSelectMode => SelectionBar.IsVisible; // Are we in multi-select mode?
         bool ignoreNextTapAfterLongPress; // To avoid tap after long-press
 
+        private AppTheme _lastTheme; // Track last theme to detect changes
+
         public FlagsPage(DatabaseService db) // Dependency Injection
         {
             InitializeComponent();
@@ -28,12 +27,16 @@ namespace Read_Repeat_Study.Pages
             FlagTappedCommand = new Command<int>(OnFlagTapped);
 
             BindingContext = this;
+
+            _lastTheme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+            Application.Current!.RequestedThemeChanged += OnRequestedThemeChanged;
         }
 
         protected override async void OnAppearing() // On page appear, load flags
         {
             base.OnAppearing();
 
+            // Reload flags (data)
             FlagsCollectionItems.Clear();
             var flags = await _db.GetAllFlagsAsync();
             foreach (var f in flags)
@@ -42,13 +45,37 @@ namespace Read_Repeat_Study.Pages
                 FlagsCollectionItems.Add(f);
             }
 
+            // If theme changed while away, force refresh
+            var currentTheme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+            if (currentTheme != _lastTheme)
+            {
+                ForceThemeRefresh();
+                _lastTheme = currentTheme;
+            }
+
             selectedFlags.Clear();
             SelectionBar.IsVisible = false;
             InputBlocker.IsVisible = false;
             UpdateActionButtons();
         }
 
-        void OnFlagLongPressed(int flagId) // Long-press: enter multi-select and select
+        private void OnRequestedThemeChanged(object sender, AppThemeChangedEventArgs e) // Theme changed
+        {
+            ForceThemeRefresh();
+            _lastTheme = e.RequestedTheme;
+        }
+
+        private void ForceThemeRefresh() // Force refresh of CollectionView to apply new theme
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var template = FlagsCollection.ItemTemplate;
+                FlagsCollection.ItemTemplate = null;
+                FlagsCollection.ItemTemplate = template;
+            });
+        }
+
+        private void OnFlagLongPressed(int flagId) // Long-press: enter multi-select and select
         {
             var flag = FlagsCollectionItems.FirstOrDefault(f => f.ID == flagId);
             if (flag == null) return;
@@ -69,7 +96,7 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        void OnFlagTapped(int flagId) // Tap: select/deselect in multi-select, or edit in single-select
+        private void OnFlagTapped(int flagId) // Tap: select/deselect in multi-select, or edit in single-select
         {
             var flag = FlagsCollectionItems.FirstOrDefault(f => f.ID == flagId);
             if (flag == null) return;
@@ -99,16 +126,16 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async void OnAddFlagClicked(object sender, EventArgs e) // Add new flag
+        private async void OnAddFlagClicked(object sender, EventArgs e) // Add new flag
             => await Shell.Current.GoToAsync("AddEditFlagPage?flagId=0");
 
-        void OnEditSelected(object sender, EventArgs e) // Edit selected (only if one)
+        private void OnEditSelected(object sender, EventArgs e) // Edit selected (only if one)
         {
             if (selectedFlags.Count == 1)
                 _ = Shell.Current.GoToAsync($"AddEditFlagPage?flagId={selectedFlags[0].ID}");
         }
 
-        async void OnDeleteSelected(object sender, EventArgs e) // Delete selected (one or more)
+        private async void OnDeleteSelected(object sender, EventArgs e) // Delete selected (one or more)
         {
             if (!selectedFlags.Any()) return;
 
@@ -127,7 +154,7 @@ namespace Read_Repeat_Study.Pages
             HideSelectionBar();
         }
 
-        void OnSelectAll(object sender, EventArgs e) // Select all flags
+        private void OnSelectAll(object sender, EventArgs e) // Select all flags
         {
             foreach (var f in FlagsCollectionItems)
             {
@@ -140,7 +167,7 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        void OnCancelSelection(object sender, EventArgs e) // Cancel selection
+        private void OnCancelSelection(object sender, EventArgs e) // Cancel selection
             => HideSelectionBar();
 
         private void OnBlockerTapped(object sender, EventArgs e) // Tap on blocker also cancels selection
@@ -148,7 +175,7 @@ namespace Read_Repeat_Study.Pages
             HideSelectionBar();
         }
 
-        void HideSelectionBar() // Hide selection bar and clear selections
+        private void HideSelectionBar() // Hide selection bar and clear selections
         {
             foreach (var f in selectedFlags)
                 f.IsSelected = false;
@@ -159,16 +186,17 @@ namespace Read_Repeat_Study.Pages
             UpdateActionButtons();
         }
 
-        void UpdateActionButtons() // Update action buttons based on selection
+        private void UpdateActionButtons() // Update action buttons based on selection
         {
             EditButton.IsVisible = selectedFlags.Count == 1;
             DeleteButton.IsVisible = selectedFlags.Count > 0;
         }
 
-        protected override void OnDisappearing() // On page disappear, hide selection bar
+        protected override void OnDisappearing() // Cleanup on disappear
         {
             base.OnDisappearing();
             HideSelectionBar();
+            Application.Current!.RequestedThemeChanged -= OnRequestedThemeChanged;
         }
     }
 }

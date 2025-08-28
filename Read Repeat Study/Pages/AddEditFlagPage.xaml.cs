@@ -62,7 +62,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        void OnRgbChanged(object sender, ValueChangedEventArgs e) // When any RGB slider changes
+        private void OnRgbChanged(object sender, ValueChangedEventArgs e) // When any RGB slider changes
         {
             var c = new Color(
                 (float)(RedSlider.Value / 255.0),
@@ -71,7 +71,7 @@ namespace Read_Repeat_Study.Pages
             ApplyColor(c);
         }
 
-        void ApplyColor(Color c) // Apply a color to the preview and sliders
+        private void ApplyColor(Color c) // Apply a color to the preview and sliders
         {
             RedSlider.Value = c.Red * 255;
             GreenSlider.Value = c.Green * 255;
@@ -81,7 +81,20 @@ namespace Read_Repeat_Study.Pages
 
         private async void OnSaveClicked(object sender, EventArgs e) // Save button clicked
         {
-            _flag.Name = NameEntry.Text?.Trim();
+            string flagName = NameEntry.Text?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(flagName))
+            {
+                await DisplayAlert("Required Field", "Please enter a name for the flag", "OK");
+
+                NameEntry.BackgroundColor = Colors.LightPink;
+                NameEntry.Focus();
+                return;
+            }
+
+            NameEntry.BackgroundColor = Colors.Transparent;
+
+            _flag.Name = flagName;
             _flag.Color = ColorPreview.BackgroundColor.ToHex();
             await _db.SaveFlagAsync(_flag);
             await Shell.Current.GoToAsync("..");

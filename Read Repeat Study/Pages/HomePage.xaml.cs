@@ -45,6 +45,12 @@ namespace Read_Repeat_Study.Pages
             UpdateThemeContainer(_currentIsLight);
         }
 
+        protected override async void OnAppearing() // Load documents when page appears
+        {
+            base.OnAppearing();
+            await LoadDocumentsAsync();
+        }
+
         private void UpdateThemeContainer(bool isLightMode) // Update container colors based on theme
         {
             if (isLightMode)
@@ -59,7 +65,6 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        [Obsolete]
         private void OnThemeToggled(object sender, ToggledEventArgs e) // Handle theme toggle with cooldown
         {
             if (_isProcessingThemeToggle) return;
@@ -84,7 +89,7 @@ namespace Read_Repeat_Study.Pages
             Preferences.Set("app_theme", Application.Current.UserAppTheme.ToString());
             UpdateThemeContainer(requestedIsLight);
 
-            Device.BeginInvokeOnMainThread(async () => // Slight delay to ensure UI updates
+            MainThread.BeginInvokeOnMainThread(async () => // Slight delay to ensure UI updates
             {
                 await Task.Delay(100);
                 await LoadDocumentsAsync();
@@ -92,7 +97,7 @@ namespace Read_Repeat_Study.Pages
             });
         }
 
-        async Task<string> ExtractTextFromPdfAsync(FileResult file) // Extract text from PDF using PdfPig
+        private async Task<string> ExtractTextFromPdfAsync(FileResult file) // Extract text from PDF using PdfPig
         {
             using var stream = await file.OpenReadAsync();
             using var pdf = PdfDocument.Open(stream);
@@ -102,7 +107,7 @@ namespace Read_Repeat_Study.Pages
             return textBuilder.ToString();
         }
 
-        string HtmlToPlainText(string html) // Convert HTML content to plain text
+        private string HtmlToPlainText(string html) // Convert HTML content to plain text
         {
             return Regex.Replace(html, "<.*?>", string.Empty)
                         .Replace("&nbsp;", " ")
@@ -111,14 +116,8 @@ namespace Read_Repeat_Study.Pages
                         .Replace("&gt;", ">");
         }
 
-        protected override async void OnAppearing() // Load documents when page appears
-        {
-            base.OnAppearing();
-            await LoadDocumentsAsync();
-        }
-
         // Show the action toolbar
-        void ShowActionButtons()
+        private void ShowActionButtons()
         {
             ActionButtonsContainer.IsVisible = true;
             InputBlocker.IsVisible = true;
@@ -126,14 +125,14 @@ namespace Read_Repeat_Study.Pages
         }
 
         // Hide and clear selection toolbar
-        void HideActionButtons()
+        private void HideActionButtons()
         {
             ActionButtonsContainer.IsVisible = false;
             InputBlocker.IsVisible = false;
             UpdateEditButtonVisibility();
         }
 
-        void HideSelectionBar() // Clear selection and hide toolbar
+        private void HideSelectionBar() // Clear selection and hide toolbar
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
@@ -149,7 +148,7 @@ namespace Read_Repeat_Study.Pages
             InputBlocker.IsVisible = false;
         }
 
-        void OnDocumentLongPressed(ImportedDocument doc) // Long-press to enter selection mode
+        private void OnDocumentLongPressed(ImportedDocument doc) // Long-press to enter selection mode
         {
             if (!ActionButtonsContainer.IsVisible)
                 ShowActionButtons();
@@ -175,7 +174,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        void OnDocumentTapped(object sender, EventArgs e) // Tap to open or select
+        private void OnDocumentTapped(object sender, EventArgs e) // Tap to open or select
         {
             var doc = (sender as VisualElement)?.BindingContext as ImportedDocument;
             if (doc == null) return;
@@ -202,7 +201,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async void OnTakeActionsClicked(object sender, EventArgs e) // Show action sheet for bulk actions
+        private async void OnTakeActionsClicked(object sender, EventArgs e) // Show action sheet for bulk actions
         {
             var action = await DisplayActionSheet("Take Actions", "Cancel", null,
                 "Add/Change Flag", "Remove Flag", "Delete");
@@ -221,7 +220,7 @@ namespace Read_Repeat_Study.Pages
             OnCancelSelectionClicked(this, EventArgs.Empty); // Clear selection after action
         }
 
-        void OnCancelSelectionClicked(object sender, EventArgs e) // Cancel selection mode
+        private void OnCancelSelectionClicked(object sender, EventArgs e) // Cancel selection mode
         {
             foreach (var doc in selectedDocuments)
                 doc.IsSelected = false;
@@ -230,7 +229,7 @@ namespace Read_Repeat_Study.Pages
             UpdateEditButtonVisibility();
         }
 
-        void OnSelectAllClicked(object sender, EventArgs e) // Select all documents
+        private void OnSelectAllClicked(object sender, EventArgs e) // Select all documents
         {
             foreach (var doc in Documents)
             {
@@ -242,7 +241,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async Task BulkAddFlagAsync() // Bulk add/change flag for selected documents
+        private async Task BulkAddFlagAsync() // Bulk add/change flag for selected documents
         {
             var flag = await SelectFlagAsync();
             if (flag == null) return;
@@ -255,7 +254,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async Task BulkRemoveFlagAsync() // Bulk remove flag from selected documents
+        private async Task BulkRemoveFlagAsync() // Bulk remove flag from selected documents
         {
             foreach (var doc in selectedDocuments)
             {
@@ -266,7 +265,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async Task BulkDeleteAsync() // Bulk delete selected documents with confirmation
+        private async Task BulkDeleteAsync() // Bulk delete selected documents with confirmation
         {
             if (await DisplayAlert("Confirm Delete",
                 $"Delete {selectedDocuments.Count} document(s)?", "Yes", "No"))
@@ -279,7 +278,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        void UpdateFlagColors() // Refresh flag colors in the UI
+        private void UpdateFlagColors() // Refresh flag colors in the UI
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -290,7 +289,7 @@ namespace Read_Repeat_Study.Pages
 
         }
 
-        async Task<Flags> SelectFlagAsync() // Prompt user to select a flag
+        private async Task<Flags> SelectFlagAsync() // Prompt user to select a flag
         {
             var flags = await _db.GetAllFlagsAsync();
             if (!flags.Any() && await DisplayAlert("No Flags", "No flags exist. Create one?", "Yes", "No"))
@@ -303,7 +302,7 @@ namespace Read_Repeat_Study.Pages
             return flags.FirstOrDefault(f => f.Name == choice);
         }
 
-        async void OnImportFilesClicked(object sender, EventArgs e) // Import multiple files
+        private async void OnImportFilesClicked(object sender, EventArgs e) // Import multiple files
         {
             try
             {
@@ -332,7 +331,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files) // Import and process selected files
+        private async Task ImportMultipleFilesAsync(IEnumerable<FileResult> files) // Import and process selected files
         {
             var allowedExtensions = new[] { ".txt", ".docx", ".epub", ".pdf" };
             var supportedFiles = files
@@ -433,7 +432,7 @@ namespace Read_Repeat_Study.Pages
             UpdateFlagColors();
         }
 
-        async void OnCreateDocumentClicked(object sender, EventArgs e) // Create new blank document
+        private async void OnCreateDocumentClicked(object sender, EventArgs e) // Create new blank document
             => await Shell.Current.GoToAsync("ReaderPage?docId=-1");
 
         private void OnDocumentFrameLoaded(object sender, EventArgs e) // Set flag color box when frame loads
@@ -508,13 +507,6 @@ namespace Read_Repeat_Study.Pages
             TakeActionsButton.IsVisible = false;
         }
 
-        protected override async void OnDisappearing() // On page disappear, cancel selection
-        {
-            base.OnDisappearing();
-            // Cancel selection automatically when leaving the page
-            OnCancelSelectionClicked(this, EventArgs.Empty);
-        }
-
         private void OnEditDocumentClicked(object sender, EventArgs e)
         {
             var doc = selectedDocuments.FirstOrDefault();
@@ -529,7 +521,7 @@ namespace Read_Repeat_Study.Pages
             }
         }
 
-        void UpdateEditButtonVisibility()
+        private void UpdateEditButtonVisibility()
         {
             EditDocumentButton.IsVisible = selectedDocuments.Count == 1;
         }
@@ -545,7 +537,7 @@ namespace Read_Repeat_Study.Pages
                 }
 
                 var choice = await DisplayActionSheet("Export Format", "Cancel", null, "CSV Report", "Text Report");
-                
+
                 if (choice == "Cancel") return;
 
                 string filePath;
@@ -553,13 +545,13 @@ namespace Read_Repeat_Study.Pages
                 if (choice == "CSV Report")
                 {
                     filePath = await _reportService.ExportToCsvAsync(Documents);
-                    await DisplayAlert("Export Complete", 
+                    await DisplayAlert("Export Complete",
                         $"CSV report exported successfully!\nLocation: {filePath}", "OK");
                 }
                 else if (choice == "Text Report")
                 {
                     filePath = await _reportService.ExportToTextAsync(Documents);
-                    await DisplayAlert("Export Complete", 
+                    await DisplayAlert("Export Complete",
                         $"Text report exported successfully!\nLocation: {filePath}", "OK");
                 }
             }
@@ -568,5 +560,13 @@ namespace Read_Repeat_Study.Pages
                 await DisplayAlert("Export Error", $"Failed to export report: {ex.Message}", "OK");
             }
         }
+
+        protected override async void OnDisappearing() // On page disappear, cancel selection
+        {
+            base.OnDisappearing();
+            // Cancel selection automatically when leaving the page
+            OnCancelSelectionClicked(this, EventArgs.Empty);
+        }
+
     }
 }
