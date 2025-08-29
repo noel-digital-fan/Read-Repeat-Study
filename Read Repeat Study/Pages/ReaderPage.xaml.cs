@@ -435,32 +435,57 @@ public partial class ReaderPage : ContentPage
     private async void OnSaveDocumentClicked(object sender, EventArgs e) // Save and exit edit mode
     {
         _fullText = PageContentEditor.Text ?? string.Empty;
+        
+        // Validate content is not empty
+        if (string.IsNullOrWhiteSpace(_fullText))
+        {
+            await DisplayAlert("Validation Error", "Document content cannot be empty. Please add some content before saving.", "OK");
+            return; // Stay in edit mode
+        }
+        
         await PaginateAsync(_fullText);
 
-        await SaveEditedContentAsync();
-        SetEditMode(false);
+        bool saveSuccessful = await SaveEditedContentAsync();
+        
+        // Only exit edit mode if save was successful
+        if (saveSuccessful)
+        {
+            SetEditMode(false);
+        }
     }
 
-    private async Task SaveEditedContentAsync() // Save edited content 
+    private async Task<bool> SaveEditedContentAsync() // Save edited content - return success status
     {
-        if (CurrentDocument == null) return;
+        if (CurrentDocument == null) return false;
 
         try
         {
             if (_isNewDocument)
             {
-                string documentName = await DisplayPromptAsync(
-                    "Save Document",
-                    "Enter a name for your document:",
-                    "Save",
-                    "Cancel",
-                    "Enter document name here...",
-                    -1,
-                    Keyboard.Text,
-                    CurrentDocument.Name == "Untitled" ? "" : CurrentDocument.Name);
+                string documentName;
+                
+                // Loop until valid name is provided or user cancels
+                do
+                {
+                    documentName = await DisplayPromptAsync(
+                        "Save Document",
+                        "Enter a name for your document:",
+                        "Save",
+                        "Cancel",
+                        "Enter document name here...",
+                        -1,
+                        Keyboard.Text,
+                        CurrentDocument.Name == "Untitled" ? "" : CurrentDocument.Name);
 
-                if (string.IsNullOrWhiteSpace(documentName))
-                    return;
+                    if (documentName == null) // User cancelled
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(documentName))
+                    {
+                        await DisplayAlert("Validation Error", "Document name cannot be empty. Please enter a valid name.", "OK");
+                    }
+                }
+                while (string.IsNullOrWhiteSpace(documentName));
 
                 CurrentDocument.Content = _fullText;
                 CurrentDocument.Name = documentName.Trim();
@@ -468,7 +493,7 @@ public partial class ReaderPage : ContentPage
                 _isNewDocument = false;
                 Title = CurrentDocument.Name;
                 await DisplayAlert("Success", "Document saved!", "OK");
-                return;
+                return true;
             }
 
             var choice = await DisplayActionSheet(
@@ -485,36 +510,48 @@ public partial class ReaderPage : ContentPage
                     CurrentDocument.Name = CurrentDocument.Name ?? "Untitled";
                     await _db.SaveDocumentAsync(CurrentDocument);
                     await DisplayAlert("Success", "Document overridden!", "OK");
-                    return;
+                    return true;
 
                 case "Save as New Document":
-                    await SaveAsNewDocumentAsync();
-                    return;
+                    return await SaveAsNewDocumentAsync();
 
                 case "Cancel":
                 default:
-                    return;
+                    return false; // User cancelled - don't exit edit mode
             }
         }
         catch (Exception ex)
         {
             await DisplayAlert("Save Error", $"Failed to save: {ex.Message}", "OK");
+            return false;
         }
     }
 
-    private async Task SaveAsNewDocumentAsync() // Save content as a new document
+    private async Task<bool> SaveAsNewDocumentAsync() // Save content as a new document - return success status
     {
         try
         {
-            var newName = await DisplayPromptAsync(
-                "Save as New Document",
-                "Enter a name for the new document:",
-                "Save",
-                "Cancel",
-                placeholder: "Enter document name here...");
+            string newName;
+            
+            // Loop until valid name is provided or user cancels
+            do
+            {
+                newName = await DisplayPromptAsync(
+                    "Save as New Document",
+                    "Enter a name for the new document:",
+                    "Save",
+                    "Cancel",
+                    placeholder: "Enter document name here...");
 
-            if (string.IsNullOrWhiteSpace(newName))
-                return;
+                if (newName == null) // User cancelled
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(newName))
+                {
+                    await DisplayAlert("Validation Error", "Document name cannot be empty. Please enter a valid name.", "OK");
+                }
+            }
+            while (string.IsNullOrWhiteSpace(newName));
 
             var newDocument = new ImportedDocument
             {
@@ -540,10 +577,12 @@ public partial class ReaderPage : ContentPage
             UpdatePageDisplay();
 
             await DisplayAlert("Success", "Document saved!", "OK");
+            return true;
         }
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Failed to save new document: {ex.Message}", "OK");
+            return false;
         }
     }
 
